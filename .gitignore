@@ -216,3 +216,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ScaleShop web application
+node_modules/
+.next/
+.vinext/
+.wrangler/
+dist/
+coverage/
+npm-debug.log*
+*.tsbuildinfo
+.DS_Store
