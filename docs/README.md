@@ -1,8 +1,8 @@
 # ScaleShop Scalability Lab — specification index
 
-Status: **review draft; implementation is intentionally blocked until approval**.
+Status: **persona-reviewed draft; implementation is intentionally blocked until approval and content completion**.
 
-This folder defines the next version of the ScaleShop Scalability Lab. It preserves the strongest parts of the original simulation—12 progressive incidents, animated metrics, evidence discovery, upgrade choices, facilitator answers, before/after comparison, and a team budget—while making the experience clearer, fairer, and more challenging.
+This folder defines the next version of the ScaleShop Scalability Lab. It preserves the strongest parts of the original simulation—12 progressive incidents, animated metrics, evidence discovery, upgrade choices, facilitator answers, before/after comparison, and a canonical cost ledger—while making the experience clearer, fairer, and more challenging.
 
 ## Documents
 
@@ -10,6 +10,7 @@ This folder defines the next version of the ScaleShop Scalability Lab. It preser
 - [level-specs.md](level-specs.md) — the complete content model for all 12 levels: incidents, evidence, choices, expected reasoning, consequences, and learning objectives.
 - [metrics-spec.md](metrics-spec.md) — metric vocabulary, credibility rules, scenario values, charts, thresholds, and simulation behavior.
 - [architecture-spec.md](architecture-spec.md) — the consistent architecture-diagram language and the exact topology changes shown at every level.
+- [facilitator-spec.md](facilitator-spec.md) — the 12-person operating model, 180-minute run sheet, presenter-safe controls, run cards, recovery behavior, and inclusion protocol.
 
 ## Recommended review baseline
 
@@ -23,6 +24,8 @@ The following product decisions are recommended for the first workshop. They rem
 6. **Keep euros, clearly labeled as scenario values.** Concrete recurring cost is easier to compare than abstract points, but the interface must say that values are not vendor quotes. Engineering effort remains a separate point budget.
 
 Reviewers should explicitly accept or revise these six decisions before implementation approval.
+
+Visible scoring is **off by default** in the facilitator-led workshop. When enabled for self-guided practice, it is labeled “team reasoning review,” never individual performance, and has no leaderboard.
 
 ## Scope boundary
 
@@ -39,4 +42,19 @@ All level data will be static, all metric motion will be simulated, and optional
 
 ## Implementation gate
 
-No application code, scaffolding, dependency installation, or deployment should begin while this document says `review draft`. Approval must identify the accepted product decisions and change the status deliberately.
+No application code, scaffolding, dependency installation, or deployment should begin while this document says `persona-reviewed draft`. Approval requires both:
+
+1. Explicit acceptance or revision of the six product decisions above.
+2. Completion of the content-authoring gate in `product-spec.md`: all stable IDs, hints, hypotheses, option metadata, preset values, option-specific metric outcomes, rubric mappings, glossary entries, and facilitator run cards must be authored and reviewed for all 12 levels.
+
+Implementation must not invent missing workshop content.
+
+## Review record
+
+The draft was reviewed from three independent perspectives:
+
+- Participant engineer, considering both junior and senior use
+- Workshop facilitator operating one shared browser for 12 engineers
+- Learning-experience and accessibility reviewer
+
+Their accepted findings are incorporated in this revision. The core purpose remains unchanged: diagnose from evidence, select the smallest sufficient intervention, explain the trade-off, verify the outcome, and expose the next complexity.

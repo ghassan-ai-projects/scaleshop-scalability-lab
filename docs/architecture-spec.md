@@ -88,16 +88,18 @@ Edge thickness may communicate relative traffic only when a small legend states 
 5. Do not automatically equate service separation with database separation; ownership is labeled explicitly.
 6. Show write paths and consistency boundaries whenever correctness is the lesson.
 7. Show failure boundaries in Level 12 without redrawing the entire system.
-8. Provide a text alternative in DOM order listing actors, nodes, and flows.
-9. On narrow screens, stack lanes vertically while preserving flow order; do not require horizontal scrolling.
-10. In fullscreen presentation mode, the diagram remains readable from screen sharing at 1080p.
+8. Provide a structured alternative containing current nodes, ordered flows, owner, source of truth, consistency expectation, failure/degraded state, stressed evidence, and exact evolved delta.
+9. On narrow screens, replace the full graph with structured lane cards or an architecture outline; do not shrink a twenty-node topology into illegible text or require horizontal scrolling.
+10. In fullscreen presentation mode, use at least 20 px equivalent labels and verify readability on a 1080p screen share at typical participant viewing distance.
 11. Node IDs and semantic lane slots remain stable across levels even when their visible labels gain annotations.
 12. The diagram model records owner, source-of-truth status, consistency expectation, and failure behavior separately from visual styling.
 13. Evidence overlays may expose measured stress only after the corresponding evidence item is opened; merely changing the traffic preset must not reveal the diagnosis.
 
 ### 5.1 Responsive layouts
 
-The desktop renderer uses stable coordinate slots. The narrow-screen renderer uses a second stable vertical template with the same node IDs and flow order; it does not algorithmically rearrange nodes on each level. Labels may wrap to two lines, but components and edge labels must not overlap at 320 px.
+The desktop renderer uses stable coordinate slots. It also provides a `Focused request path` view that preserves the current incident's actors, ownership, boundaries, stressed evidence, and relevant side effects while hiding unrelated branches.
+
+At narrow widths, structured lane cards use the same node IDs and ordered flow, with expandable ownership and failure details. The full topology remains available as an outline but is not scaled down. Labels may wrap, and no component or edge meaning may be lost at 320 px.
 
 ## 6. Architecture progression
 
@@ -105,14 +107,14 @@ The desktop renderer uses stable coordinate slots. The narrow-screen renderer us
 |---:|---|---|
 | 1 | User → monolithic web app → PostgreSQL; app → email provider | Same topology plus metrics/tracing node and labeled SLO observation points |
 | 2 | Instrumented monolith and PostgreSQL | Same topology; app node labeled batched queries/pagination and DB labeled targeted indexes/pooling |
-| 3 | Optimized monolith and PostgreSQL | Redis cache added between catalogue path and PostgreSQL; PostgreSQL remains source of truth |
-| 4 | Monolith, Redis, PostgreSQL, synchronous email | Queue/outbox and workers added; invoice, analytics, and warehouse effects become asynchronous |
-| 5 | One stateful app instance, cache, queue, primary database | Load balancer plus multiple stateless app instances; sessions externalized and files moved to object storage |
+| 3 | Optimized monolith and PostgreSQL | Cache-aside branch added for catalogue reads, with a direct PostgreSQL miss/failure fallback; PostgreSQL remains source of truth |
+| 4 | Monolith, Redis, PostgreSQL, synchronous email | Outbox shown inside the PostgreSQL transaction boundary, followed by relay, queue, and workers; invoice, analytics, and warehouse effects become asynchronous |
+| 5 | One stateful app instance, catalogue cache, queue, primary database | Load balancer plus multiple stateless app instances; catalogue-cache and session-store responsibilities are labeled separately even if one Redis deployment hosts both; files move to object storage |
 | 6 | Load-balanced origin | CDN/edge added before load balancer for static assets and public catalogue; private paths bypass public cache |
 | 7 | CDN, app fleet, Redis, queue, one primary | Read replicas added; write and read routes labeled; read-your-own-write path remains on primary |
 | 8 | Primary plus read replicas handling transactions and reports | Event/batch pipeline and analytical store added; dashboards route away from OLTP replicas |
-| 9 | Shared monolith fleet for catalogue and checkout | Catalogue and checkout independently deployable; catalogue read model and order source of truth labeled. A separate physical catalogue database is not implied unless its ownership field says so |
-| 10 | Separate catalogue and checkout with order database | Checkout gains admission control, idempotency, reservation state machine, and atomic inventory write path |
+| 9 | Shared monolith fleet for catalogue and checkout | Catalogue and checkout independently deployable; catalogue read model is labeled `derived` with its authoritative upstream owner, and order source of truth is explicit. A separate physical catalogue database is not implied unless its ownership field says so |
+| 10 | Separate catalogue and checkout with order database | Checkout gains admission control, idempotency, reservation state machine, and a labeled atomic inventory write boundary at the inventory source of truth |
 | 11 | Large order database | Canonical setup shows time partitions/archive only; the optional senior extension may temporarily reveal shards without changing the Level 12 starting state |
 | 12 | Full evolved system | Same topology with multi-zone placement, dependency policies, backpressure, graceful-degradation routes, and health-based canary rollback controls |
 
@@ -141,7 +143,8 @@ flowchart LR
     CAT --> CATDATA[(Catalogue read model)]
     CHECK --> ORDERS[(Partitioned orders)]
     ORDERS --> REPLICA[(Read replicas)]
-    CHECK --> QUEUE[Outbox and queue]
+    CHECK -->|same transaction| OUTBOX[Outbox in orders DB]
+    OUTBOX -. relay .-> QUEUE[Job and event queue]
     QUEUE --> WORKERS[Workers]
     QUEUE -. events .-> ANALYTICS[(Analytics store)]
     WORKERS --> EMAIL[Email provider]
@@ -168,5 +171,7 @@ For every level, reviewers must be able to confirm:
 - The new component’s data ownership and failure implication are stated.
 - The diagram remains legible with labels at desktop and mobile widths.
 - The text alternative conveys the same architecture without the image.
+- The focused request-path view preserves every incident-relevant ownership and failure boundary.
 - Current and evolved diagrams use the same viewport, scale, and unchanged-node coordinates at desktop size.
 - Every visible node and edge can be traced to level data rather than conditional markup embedded in a UI component.
+- The final topology passes 1080p screen-share, 200% zoom, 400% reflow, and structured 320-px lane-card tests without reducing labels below the specified minimum.

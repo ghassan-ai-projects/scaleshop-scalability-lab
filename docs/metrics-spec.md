@@ -21,7 +21,7 @@ Business invariants such as “no overselling” remain visible when correctness
 | p50 | Median latency; half of requests finish faster |
 | p95 | 95% of requests finish at or below this value; the primary workshop latency signal |
 | p99 | Tail latency used as deeper evidence, not a default card on every level |
-| Error rate | Failed requests divided by all requests in the rolling window |
+| Error rate | Failed requests divided by offered requests in the named journey and rolling window; the card states included HTTP statuses, timeouts, rejections, and business failures |
 | Utilization | Percentage of a resource’s available capacity currently used |
 | Saturation | Work waiting because the resource is at capacity, such as queueing or connection waits |
 | Cache hit ratio | Cache reads served without reaching the source of truth |
@@ -48,6 +48,8 @@ Business invariants such as “no overselling” remain visible when correctness
 14. Percentages name their denominator. “72% routed to replicas” means 72% of all reads, not 72% of an unstated eligible subset.
 15. A derived metric and its inputs agree within rounding tolerance. The scenario cannot show a cache ratio, request rate, or inventory total that contradicts its component values.
 16. Threshold status is computed from the stated SLO or capacity limit, not stored as an unrelated label.
+17. Every error card names the journey, included failure types, denominator, and rolling window.
+18. Every metric is authored as `core`, `evidence`, or `advanced`; the initial shared-screen view shows only three or four core signals.
 
 ## 4. Always-visible workshop targets
 
@@ -67,9 +69,11 @@ Some levels introduce additional constraints such as analytics freshness or invo
 
 Values below are the stable center points around which the UI may animate by a small seeded amount.
 
+This table specifies the Incident state and canonical recommended outcome. Before implementation approval, each level must additionally author Normal, Campaign, and Peak center values plus an outcome state for every selectable option. The product content-authoring gate remains open until those records exist.
+
 | Level | Pressure | Decisive “before” metrics | Expected metrics after recommended change |
 |---:|---|---|---|
-| 1 | New system, unknown capacity | 2 RPS; catalogue p95 180 ms; checkout p95 420 ms; errors 0.1%; app CPU 18%; DB CPU 12% | Performance is unchanged; trace coverage reaches 98%; every SLO has a defined alert |
+| 1 | New system, unknown capacity | 2 offered RPS; catalogue p95 180 ms; checkout p95 420 ms; errors 0.1%; app CPU 18%; DB CPU 12%; no capacity envelope | Healthy-load performance is unchanged; trace coverage 98%; every SLO has an alert; stepped test sustains 28 RPS and first breaches catalogue p95 at 31 RPS |
 | 2 | Campaign reaches 40 RPS | Catalogue p95 1,840 ms; 483 SQL queries/request; DB CPU 92%; DB connections 48/50; app CPU 38% | Catalogue p95 190 ms; 6 queries/request; DB CPU 34%; connections 18/50 |
 | 3 | Viral catalogue reaches 300 RPS | Catalogue p95 890 ms; repeated DB reads 7,200/s; DB CPU 86%; identical-key share 71% | Catalogue p95 95 ms; cache hit ratio 89%; DB reads 1,500/s; DB CPU 32% |
 | 4 | 15 checkouts/s with slow side effects | Checkout p95 5,800 ms; errors 4.1%; email-provider p95 4,300 ms; duplicate invoices 1.4% | Checkout p95 460 ms; errors 0.5%; invoice oldest-job age under 10 s; duplicates 0 |
@@ -78,9 +82,9 @@ Values below are the stable center points around which the UI may animate by a s
 | 7 | Read and reporting pressure on primary | Primary CPU 91%; read IOPS 88% of capacity; checkout p95 860 ms; read share 82% | Primary CPU 52%; 72% of all reads routed away; checkout p95 540 ms; replica lag 0.8 s |
 | 8 | Years of analytics queries | Report duration 210 s; 180 GB scanned/report; replica lag 95 s; dashboard freshness requirement 5 min | Report duration 8 s; OLTP replica lag 0.9 s; analytics freshness 3 min; checkout p95 480 ms |
 | 9 | Catalogue 8,000 RPS, checkout 30/s | Catalogue owns 88% of app CPU; catalogue p95 410 ms; checkout p95 620 ms; 24 shared instances | Catalogue and checkout scale separately; catalogue p95 180 ms; checkout p95 460 ms; checkout uses 3 instances |
-| 10 | 20,000 simultaneous attempts for 500 units | Lock-wait p95 2,800 ms; transaction retries 18%; duplicate orders 2.1%; oversold units 63 | Oversold units 0; duplicates 0; exactly 500 reservations accepted; checkout outcome p95 720 ms |
-| 11 | 4.2 TB order store and write ceiling | Indexes 1.6 TB; write IOPS 92%; checkout p95 1,200 ms; backup 11 h; maintenance 7 h | Hot set 650 GB; indexes 340 GB; write IOPS 68%; checkout p95 650 ms; hot backup 2.1 h |
-| 12 | Dependency and zone failures | Checkout errors 12%; dependency timeouts 30 s; SLO burn 22×; queue oldest age 26 min | Checkout errors 0.7%; checkout p95 690 ms; confirmed order loss 0; queue recovers within 12 min |
+| 10 | 20,000 simultaneous attempts for 500 units | 20,000 attempts; useful completion 437 reservations; lock-wait p95 2,800 ms; retries 18%; duplicates 2.1%; oversold units 63 | 20,000 attempts; exactly 500 reservations accepted; explicit rejected/queued outcomes for excess demand; oversold 0; duplicates 0; checkout outcome p95 720 ms |
+| 11 | 4.2 TB order store and write ceiling | Indexes 1.6 TB; write IOPS 92%; checkout p95 1,200 ms; backup 11 h; maintenance 7 h | Hot set 650 GB; indexes 340 GB; write IOPS 68%; checkout p95 650 ms; hot backup 2.1 h; hot restore 3.4 h; maintenance 1.5 h |
+| 12 | Dependency and zone failures | Offered checkout 30/s; useful completion 26.4/s; checkout errors 12%; dependency timeouts 30 s; SLO burn 22×; queue oldest age 26 min | Offered checkout 30/s; useful completion 29.8/s; checkout errors 0.7%; checkout p95 690 ms; confirmed order loss 0; queue recovers within 12 min |
 
 ## 6. Level-specific evidence metrics
 
@@ -196,6 +200,40 @@ The lesson is that “everything seems fast” is not a capacity model.
 - Confirmed order loss
 - Recovery time
 
+### 6.1 Presentation tiers
+
+The detailed lists above define available evidence. The initial shared-screen row uses only these core signals; evidence and advanced values open on demand.
+
+| Level | Core signals shown first | Evidence signals | Advanced signals |
+|---:|---|---|---|
+| 1 | Offered RPS; catalogue p95; checkout p95; error rate | Trace coverage; SLO state | p50/p99 by route; alert test |
+| 2 | Catalogue p95; queries/request; DB CPU; connection wait | Database time; rows examined/returned | Query-plan details; write-index cost |
+| 3 | Catalogue p95; DB reads/s; DB CPU; repeated-key share | Update frequency; miss behavior | Refill concurrency; eviction/stampede count |
+| 4 | Checkout p95; checkout error rate; email p95; duplicate effects | Stage trace; queue age | Retry/dead-letter detail |
+| 5 | Catalogue p95; app CPU; request queue wait; errors | Per-instance skew; session/file location | Health/drain state; fleet connections |
+| 6 | Far-region TTFB; image byte share; origin RPS; origin egress | Edge hit/miss latency | Cache-key cardinality; geographic breakdown |
+| 7 | Checkout p95; primary CPU; read IOPS; write IOPS | Eligible-read share; replica lag | Max lag; read-your-own-write failures |
+| 8 | Report duration; bytes scanned; replica lag; analytics freshness | OLTP I/O during report; reconciliation | Backfill and schema-version state |
+| 9 | Catalogue p95; checkout p95; CPU share by workload; instance allocation | deployment impact; release frequency | synchronous-call and pool detail |
+| 10 | Offered attempts; accepted reservations; oversold units; duplicates | lock wait; retry rate | expiry and idempotency-key detail |
+| 11 | Hot-set size; write IOPS; checkout p95; hot-backup time | index size; maintenance time | pruning ratio; restore drill; optional shard skew |
+| 12 | Offered checkout; useful completion; checkout errors; SLO burn | queue age; retry amplification; dependency state | circuit state; recovery timeline |
+
+### 6.2 Decision-driving thresholds
+
+| Signal | Threshold or comparison rule |
+|---|---|
+| Connection-pool wait | At risk above 50 ms p95; breached above 100 ms p95 for the journey window |
+| Queue oldest age for invoice delivery | Healthy under 10 s; at risk 10–30 s; breached above the 30-second delivery allowance |
+| Replica lag | Evaluated against the route: catalogue 5 s, internal reports 60 s, read-your-own-write 0 visible lag |
+| Analytics freshness | Healthy at or below 5 minutes; expected post-change center 3 minutes |
+| Retry amplification | At risk above 1.2 downstream attempts per offered request; breached above 1.5 |
+| Write-I/O headroom in Level 11 | Healthy with at least 20% free; breached when utilization exceeds 80% at Peak |
+| Hot backup / restore / maintenance | Backup under 3 h; tested hot restore under 4 h; scheduled maintenance under 2 h |
+| SLO burn rate | Healthy at or below 1×; at risk above 2×; incident escalation above 10× |
+
+Thresholds are workshop scenario contracts, not universal operational defaults.
+
 ## 7. Chart behavior
 
 The primary chart is a synchronized set of 60-second small multiples. Metrics with different units never share a y-axis. Each metric keeps the same scale across its own before/after comparison, so an improvement cannot be exaggerated by rescaling. Metric cards show the current stable value; the charts show how the incident developed.
@@ -210,6 +248,10 @@ When an option is applied:
 
 No chart should loop dramatic random spikes merely to look live.
 
+`Pause motion` freezes visual jitter and transitions but not the selected scenario state. `Show final state now` skips the remaining transition. Jitter is never announced by assistive technology. One concise live-region message announces only an authored state change, for example: `Change applied. Checkout p95 improved from 5,800 to 460 milliseconds; invoice delivery is now asynchronous.`
+
+Every chart has an adjacent before/after table with value, unit, threshold status, absolute change, direction, and an accessible explanation of what remained unchanged.
+
 ## 8. Traffic control
 
 Traffic is selected through named presets. The exact values vary by level but preserve workload mix:
@@ -219,9 +261,9 @@ Traffic is selected through named presets. The exact values vary by level but pr
 - **Peak:** SLO is near its limit
 - **Incident:** exposes the level’s bottleneck
 
-The facilitator can move between presets. Participant mode begins at Incident so the challenge is immediately visible. Arbitrary sliders are excluded because they allow nonsensical combinations and make workshop results harder to reproduce.
+The facilitator can move between presets. Levels 2–12 begin at Incident so the challenge is immediately visible. Level 1 begins at the healthy launch baseline because the missing measurement and capacity contract is the incident. Arbitrary sliders are excluded because they allow nonsensical combinations and make workshop results harder to reproduce.
 
-Level 1 is the exception: it begins at the healthy launch baseline because the missing measurement contract is the incident. Levels 10–12 relabel the same four preset positions with scenario-specific pressure descriptions where raw RPS is not the controlling variable.
+Levels 10–12 relabel the same four preset positions with scenario-specific pressure descriptions where raw RPS is not the controlling variable.
 
 | Preset | Intended diagnostic state | Approximate offered-load position |
 |---|---|---:|

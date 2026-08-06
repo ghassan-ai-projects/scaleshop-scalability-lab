@@ -17,12 +17,14 @@
 
 ### Option challenge rules
 
-- Teams must record a provisional bottleneck and select two revealed evidence items before seeing the options.
+- Teams must record a provisional bottleneck and select two revealed evidence items before seeing the options. Those selections carry into the decision summary and are not re-entered.
 - Every option addresses at least one real symptom or plausible future concern.
 - Before commit, cards show mechanism, lead-time band, recurring scenario cost, engineering points, and reversibility. They never show outcome classification or predicted metrics.
 - At least one rejected option must be viable under a different time horizon, and facilitator notes must state the threshold that would make it appropriate.
 - Unsafe options are plausible shortcuts that violate a stated invariant; there is at most one per standard level.
 - The recommended option must win on the stated constraint set, not because it uses the workshop's intended technology.
+- Other rejected options must be credible but partial, mistimed, or unnecessarily costly.
+- Card titles are short and neutral. Every card uses the same detail fields so the recommended option is not identifiable by length, safeguard count, or production-ready tone.
 
 ### Canonical budget ledger
 
@@ -31,31 +33,59 @@ Only the recommended change affects the continuing totals. Level 12 uses its sep
 | After level | Canonical change | Monthly change | Engineering points used | Monthly budget remaining | Engineering points remaining |
 |---:|---|---:|---:|---:|---:|
 | Start | — | — | — | €6,000 | 70 |
-| 1 | SLOs and observability | €120 | 3 | €5,880 | 67 |
-| 2 | Query and index optimization | €0 | 4 | €5,880 | 63 |
-| 3 | Selective caching | €180 | 4 | €5,700 | 59 |
-| 4 | Outbox, queue, and workers | €250 | 5 | €5,450 | 54 |
-| 5 | Stateless application fleet | €600 | 4 | €4,850 | 50 |
-| 6 | CDN and edge policy | €180 | 3 | €4,670 | 47 |
-| 7 | Read replicas and routing | €550 | 4 | €4,120 | 43 |
-| 8 | Analytical pipeline and store | €800 | 6 | €3,320 | 37 |
-| 9 | Catalogue scaling boundary | €500 | 7 | €2,820 | 30 |
-| 10 | Atomic reservations and admission | €150 | 6 | €2,670 | 24 |
-| 11 | Partitioning and archive | €300 | 6 | €2,370 | 18 |
-| 12 | Resilience action set | separate capstone constraint | separate capstone constraint | €2,370 | 18 |
+| 1 | SLOs, observability, and stepped capacity test | €120 | 4 | €5,880 | 66 |
+| 2 | Query and index optimization | €0 | 4 | €5,880 | 62 |
+| 3 | Selective caching | €180 | 4 | €5,700 | 58 |
+| 4 | Outbox, queue, and workers | €250 | 5 | €5,450 | 53 |
+| 5 | Stateless application fleet | €600 | 4 | €4,850 | 49 |
+| 6 | CDN and edge policy | €180 | 3 | €4,670 | 46 |
+| 7 | Read replicas and routing | €550 | 4 | €4,120 | 42 |
+| 8 | Analytical pipeline and store | €800 | 6 | €3,320 | 36 |
+| 9 | Catalogue scaling boundary | €500 | 7 | €2,820 | 29 |
+| 10 | Atomic reservations and admission | €150 | 6 | €2,670 | 23 |
+| 11 | Partitioning and archive | €300 | 6 | €2,370 | 17 |
+| 12 | Resilience action set | separate capstone constraint | separate capstone constraint | €2,370 | 17 |
 
 ## 2. Shared reasoning template
 
-Before submitting, teams complete:
+Before options appear, teams select:
 
 1. **Bottleneck:** name the limiting resource or failure mechanism.
 2. **Evidence:** cite two decisive signals.
+
+The decision summary carries those selections forward. Before submitting, teams add:
+
 3. **Fit:** explain why the choice restores the SLO under the stated constraints.
-4. **New risk:** name the most important complexity or failure mode introduced.
+4. **Prediction:** state what should improve and what should remain unchanged.
+5. **New risk:** name the most important complexity or failure mode introduced.
+
+Stable IDs and diagnostic roles in this document are authoring metadata and are not shown as answer cues. A canonical hypothesis earns 25 diagnosis points, an adjacent mechanism earns 10, a symptom-only selection earns 5, and an unrelated selection earns 0. Two decisive evidence items earn 12.5 points each; supporting items earn 6.25 each; context items earn 0. Evidence credit is capped at 25.
+
+## 3. Participant and technique titles
+
+The neutral participant title is displayed until debrief. The technique title is facilitator/debrief content only.
+
+| Level | Participant title | Technique title revealed in debrief | Canonical hypothesis ID | Plausible alternative hypotheses |
+|---:|---|---|---|---|
+| 1 | Unknown capacity | Establish the operating contract | L1-H1: missing objectives and representative capacity evidence | L1-H2 database capacity; L1-H3 app capacity; L1-H4 cache absence |
+| 2 | The campaign slowdown | Remove inefficient database access | L2-H1: excessive database work per request | L2-H2 app compute; L2-H3 insufficient DB tier; L2-H4 pool size |
+| 3 | The viral product | Cache the read-heavy catalogue | L3-H1: repeated bounded-stale reads | L3-H2 insufficient DB tier; L3-H3 missing replicas; L3-H4 app compute |
+| 4 | Checkout waits on side effects | Isolate slow work with durable jobs | L4-H1: synchronous non-critical side effects | L4-H2 app capacity; L4-H3 DB capacity; L4-H4 request timeout |
+| 5 | One instance at the limit | Scale stateless application instances | L5-H1: single stateful app compute ceiling | L5-H2 database capacity; L5-H3 static delivery; L5-H4 load skew only |
+| 6 | Slow far from home | Move public content to the edge | L6-H1: geographic delivery and repeated public bytes | L6-H2 origin compute; L6-H3 database latency; L6-H4 regional writes |
+| 7 | The overloaded primary | Route eligible reads to replicas | L7-H1: eligible reads saturate the primary | L7-H2 write capacity; L7-H3 lock contention; L7-H4 report cache only |
+| 8 | Reports overwhelm operations | Separate analytical workloads | L8-H1: analytical workload and OLTP model mismatch | L8-H2 insufficient replica count; L8-H3 service deployment coupling; L8-H4 missing indexes only |
+| 9 | One fleet, two workloads | Separate the catalogue scaling boundary | L9-H1: workload and failure-boundary mismatch | L9-H2 database capacity; L9-H3 cache capacity; L9-H4 frontend coupling only |
+| 10 | Five hundred units | Preserve inventory under contention | L10-H1: unsafe hot-record correctness and admission | L10-H2 app capacity; L10-H3 database CPU; L10-H4 distributed lock absence |
+| 11 | Four terabytes and growing | Partition first; shard only with evidence | L11-H1: cold history inflates hot structures and maintenance | L11-H2 primary tier; L11-H3 immediate sharding; L11-H4 database technology |
+| 12 | Everything fails at once | Design for failure under load | L12-H1: amplification plus shared failure domains | L12-H2 raw capacity; L12-H3 timeout length; L12-H4 global active-active absence |
 
 ---
 
 ## Level 1 — Establish the operating contract
+
+- **Participant title:** Unknown capacity
+- **Technique title after reveal:** Establish the operating contract
 
 ### Incident
 
@@ -72,17 +102,17 @@ ScaleShop has launched. It serves 2 RPS and everything appears healthy. The foun
 
 ### Evidence available
 
-- Access logs contain status and duration but no route percentiles.
-- There is no baseline, tracing, alert, or error-budget definition.
-- App CPU is 18% and DB CPU is 12% at the current load.
-- One successful manual test is available.
-- Provider instance specifications describe theoretical resources but not application capacity.
+- `L1-E1` — Access logs contain status and duration but no route percentiles. **Decisive.**
+- `L1-E2` — There is no baseline, tracing, alert, error-budget definition, or representative capacity envelope. **Decisive.**
+- `L1-E3` — App CPU is 18% and DB CPU is 12% at the current load. **Supporting.**
+- `L1-E4` — One successful manual test is available. **Context.**
+- `L1-E5` — Provider instance specifications describe theoretical resources but not application capacity. **Context.**
 
 ### Options
 
 | Option | Cost | Why it is plausible | Outcome |
 |---|---:|---|---|
-| Define journey SLOs; instrument RED/USE metrics and traces | €120 + 3 points | Establishes a measurable operating contract before optimization | **Best next change** |
+| Define journey SLOs, instrument RED/USE metrics and traces, then run a representative stepped load test | €120 + 4 points | Establishes targets and a reproducible capacity envelope before optimization | **Best next change** |
 | Run one 10,000-RPS load test and record the average latency | €0 + 2 points | Produces a capacity number quickly | Partial: no tail latency, steady-state baseline, or production detection |
 | Upgrade PostgreSQL before launch traffic grows | €700 + 1 point | Adds headroom to a critical dependency | Premature: no evidence the database is limiting |
 | Buy an APM tool but keep default dashboards and alerts | €250 + 2 points | Adds broad visibility with little setup | Viable but incomplete: telemetry without explicit service objectives |
@@ -92,17 +122,17 @@ ScaleShop has launched. It serves 2 RPS and everything appears healthy. The foun
 
 - **Bottleneck:** knowledge and detection, not compute capacity.
 - **Evidence:** no route-level percentiles and no defined failure threshold.
-- **Why this fits:** every later decision requires a stable target and comparable before/after evidence.
+- **Why this fits:** every later decision requires a stable target, representative workload, first limiting boundary, and comparable before/after evidence.
 - **New risk:** noisy telemetry, excessive cardinality, and alert fatigue if instrumentation is undisciplined.
 
 ### Fit boundary and verification
 
-- **Do not over-apply it:** instrumentation is not a substitute for a capacity test, and unbounded labels or traces can create cost and privacy problems.
-- **Verify:** all five workshop objectives have owners and thresholds, 98% of requests are traced, and a synthetic SLO breach reaches the intended alert without paging on healthy traffic.
+- **Do not over-apply it:** one synthetic peak or one workload mix is not a universal capacity promise, and unbounded labels or traces can create cost and privacy problems.
+- **Verify:** all five objectives have owners and thresholds, 98% of requests are traced, alerts fire at the intended boundary, and a stepped test records sustainable load, workload mix, first breached SLO, and first limiting resource.
 
 ### Debrief
 
-The system does not become faster. Trace coverage reaches 98%, the five workshop objectives are visible, and future incidents can be diagnosed. The evolved diagram adds an observability node without changing the request path.
+The healthy 2-RPS system does not become faster. Trace coverage reaches 98% and all five objectives are visible. A representative stepped test finds sustainable load through 28 RPS; catalogue p95 first breaches 300 ms at 31 RPS as database work rises. The result is a capacity envelope, not a universal promise. The evolved diagram adds an observability node without changing the request path.
 
 ### Stretch question
 
@@ -111,6 +141,9 @@ Which SLOs should differ between catalogue browsing and checkout, and why?
 ---
 
 ## Level 2 — Remove inefficient database access
+
+- **Participant title:** The campaign slowdown
+- **Technique title after reveal:** Remove inefficient database access
 
 ### Incident
 
@@ -125,12 +158,12 @@ A campaign raises traffic to 40 RPS. Catalogue p95 reaches 1,840 ms while the ap
 
 ### Evidence available
 
-- One listing request executes 483 SQL queries.
-- Database time is 1,690 ms of the 1,840-ms trace.
-- App CPU is 38%; DB CPU is 92%.
-- DB connections are 48/50 with measurable pool wait.
-- Repeated category and image lookups reveal an N+1 access pattern.
-- Query plans show full scans for two common filters and large unused column payloads.
+- `L2-E1` — One listing request executes 483 SQL queries. **Decisive.**
+- `L2-E2` — Database time is 1,690 ms of the 1,840-ms trace. **Decisive.**
+- `L2-E3` — App CPU is 38%; DB CPU is 92%. **Supporting.**
+- `L2-E4` — DB connections are 48/50 with measurable pool wait. **Supporting.**
+- `L2-E5` — Repeated query signatures fetch category and image data one item at a time. **Supporting; the term N+1 is introduced in debrief.**
+- `L2-E6` — Query plans show full scans for two common filters and large unused column payloads. **Supporting.**
 
 ### Options
 
@@ -140,7 +173,7 @@ A campaign raises traffic to 40 RPS. Catalogue p95 reaches 1,840 ms while the ap
 | Batch related reads, paginate, select required columns, and add targeted indexes | €0 + 4 points | Directly removes the measured database work | **Best next change** |
 | Add Redis in front of all product queries | €180 + 4 points | Could reduce repetitive database reads | Partial and premature; masks inefficient misses and adds invalidation |
 | Vertically scale PostgreSQL fourfold | €800 + 1 point | Quickly creates database headroom | Viable temporary move, but recurring cost preserves 483 queries/request |
-| Raise the connection pool from 50 to 200 | €0 + 1 point | Reduces application-side connection waiting | Unsafe at saturation; can amplify database queueing and memory use |
+| Raise the connection pool from 50 to 200 | €0 + 1 point | Reduces application-side connection waiting | Breaks the capacity-safety constraint at saturation by amplifying database queueing and memory use |
 
 ### Recommended reasoning
 
@@ -166,6 +199,9 @@ At what point would vertical scaling still be a rational short-term incident res
 
 ## Level 3 — Cache the read-heavy catalogue
 
+- **Participant title:** The viral product
+- **Technique title after reveal:** Cache the read-heavy catalogue
+
 ### Incident
 
 A product goes viral. Traffic reaches 300 RPS; 95% of requests read catalogue data that changes only a few times per hour.
@@ -179,12 +215,11 @@ A product goes viral. Traffic reaches 300 RPS; 95% of requests read catalogue da
 
 ### Evidence available
 
-- DB CPU is 86% and app CPU is 42%.
-- 71% of reads request the same 50 keys.
-- Database reads reach 7,200/s.
-- Catalogue p95 is 890 ms; checkout remains healthy.
-- Product updates occur 10–20 times/hour.
-- A projected 85–92% hit ratio would restore database headroom.
+- `L3-E1` — DB CPU is 86% and app CPU is 42%. **Supporting.**
+- `L3-E2` — Seventy-one percent of reads request the same 50 keys. **Decisive.**
+- `L3-E3` — Database reads reach 7,200/s. **Decisive.**
+- `L3-E4` — Catalogue p95 is 890 ms; checkout remains healthy. **Supporting.**
+- `L3-E5` — Product updates occur 10–20 times/hour, with the stated field-level freshness limits. **Decisive.**
 
 ### Options
 
@@ -192,8 +227,8 @@ A product goes viral. Traffic reaches 300 RPS; 95% of requests read catalogue da
 |---|---:|---|---|
 | Add a read replica for all catalogue reads | €550 + 4 points | Scales reads and avoids cache invalidation | Viable but costlier; every repeated read still consumes database capacity and lag must be handled |
 | Cache selected catalogue data with TTLs, invalidation, and request coalescing | €180 + 4 points | Matches high repetition and bounded staleness | **Best next change** |
-| Pre-render the entire catalogue once each night | €100 + 4 points | Makes reads extremely cheap | Unsafe freshness for price and midday updates |
-| Publicly cache every GET route at the edge | €180 + 3 points | Can remove most origin traffic | Unsafe for account, cart, personalized, and private responses |
+| Pre-render descriptions and categories nightly; fetch prices live | €100 + 4 points | Removes stable-field rendering while preserving authoritative price freshness | Partial; live price and other dynamic reads keep substantial database pressure |
+| Publicly cache every GET route at the edge | €180 + 3 points | Can remove most origin traffic | Breaks privacy and freshness invariants for account, cart, personalized, and private responses |
 | Upgrade the database again | €800 + 1 point | Buys immediate read headroom | Temporary and more expensive than exploiting repetition |
 
 ### Recommended reasoning
@@ -220,6 +255,9 @@ Which catalogue fields should use event invalidation, and which are safer with T
 
 ## Level 4 — Isolate slow side effects with jobs
 
+- **Participant title:** Checkout waits on side effects
+- **Technique title after reveal:** Isolate slow work with durable jobs
+
 ### Incident
 
 Orders reach 15/s. Checkout validates the cart, reserves inventory, creates the order, generates a PDF, sends email, records analytics, and notifies the warehouse before responding.
@@ -234,11 +272,11 @@ Orders reach 15/s. Checkout validates the cart, reserves inventory, creates the 
 
 ### Evidence available
 
-- Checkout p95 is 5,800 ms and error rate 4.1%.
-- Trace: validation 25 ms, inventory 40 ms, order 35 ms, PDF 780 ms, email 4,300 ms, analytics 210 ms.
-- Email-provider timeouts cause successful orders to appear failed.
-- Customer retries correlate with 1.4% duplicate invoices.
-- App CPU is 44% and DB CPU is 46%.
+- `L4-E1` — Checkout p95 is 5,800 ms and error rate 4.1%. **Supporting.**
+- `L4-E2` — Trace: validation 25 ms, inventory 40 ms, order 35 ms, PDF 780 ms, email 4,300 ms, analytics 210 ms. **Decisive.**
+- `L4-E3` — Email-provider timeouts cause successful orders to appear failed. **Decisive.**
+- `L4-E4` — Customer retries correlate with 1.4% duplicate invoices. **Decisive.**
+- `L4-E5` — App CPU is 44% and DB CPU is 46%. **Supporting.**
 
 ### Options
 
@@ -246,9 +284,9 @@ Orders reach 15/s. Checkout validates the cart, reserves inventory, creates the 
 |---|---:|---|---|
 | Add application instances | €600 + 2 points | More concurrency can hide some blocking | Partial; provider latency remains on every request and duplicates remain |
 | Commit the order, write an outbox, and process idempotent side effects with workers | €250 + 5 points | Removes non-critical latency and preserves committed work | **Best next change** |
-| Increase the request timeout to 30 seconds | €0 + 1 point | Reduces visible timeout errors | Unsafe symptom treatment; ties up capacity and encourages retries |
-| Start background threads after responding | €0 + 2 points | Looks asynchronous without new infrastructure | Unsafe; process restart loses unrecorded work |
-| Queue the entire checkout and immediately show “order accepted” | €250 + 6 points | Maximizes apparent responsiveness | Violates the confirmed-order contract and complicates payment failure UX |
+| Increase the request timeout to 30 seconds | €0 + 1 point | Reduces visible timeout errors | Partial symptom treatment; provider time remains on-path and tied-up requests reduce headroom |
+| Poll durable order-status columns with workers | €100 + 4 points | Recovers work after crashes without a separate commit-to-queue write | Viable but inefficient; database polling and side-effect state remain tightly coupled |
+| Queue PDF and email only; retain synchronous analytics and warehouse calls | €180 + 4 points | Removes the two longest stages while limiting scope | Partial; remaining external calls still affect checkout and the durable handoff must be verified |
 
 ### Recommended reasoning
 
@@ -274,6 +312,9 @@ What exactly belongs in the database transaction, the outbox record, and the wor
 
 ## Level 5 — Scale stateless application instances
 
+- **Participant title:** One instance at the limit
+- **Technique title after reveal:** Scale stateless application instances
+
 ### Incident
 
 Dynamic traffic reaches 1,000 RPS. Application CPU is saturated while database and queue capacity remain healthy. Sessions live in process memory and uploads live on local disk.
@@ -287,12 +328,12 @@ Dynamic traffic reaches 1,000 RPS. Application CPU is saturated while database a
 
 ### Evidence available
 
-- App CPU is 96%; DB CPU is 41%.
-- Request queue wait is 680 ms.
-- Catalogue p95 is 1,210 ms and errors 3.8%.
-- Profiling shows useful application work rather than one pathological endpoint.
-- Starting a second instance loses sessions and cannot access earlier uploads.
-- One instance is the clear capacity ceiling.
+- `L5-E1` — App CPU is 96%; DB CPU is 41%. **Decisive.**
+- `L5-E2` — Request queue wait is 680 ms. **Decisive.**
+- `L5-E3` — Catalogue p95 is 1,210 ms and errors 3.8%. **Supporting.**
+- `L5-E4` — Profiling shows useful application work rather than one pathological endpoint. **Supporting.**
+- `L5-E5` — Starting a second instance loses sessions and cannot access earlier uploads. **Decisive.**
+- `L5-E6` — One instance is the clear capacity ceiling. **Context.**
 
 ### Options
 
@@ -328,6 +369,9 @@ How should database connection limits change when the application fleet autos-sc
 
 ## Level 6 — Move public content to the edge
 
+- **Participant title:** Slow far from home
+- **Technique title after reveal:** Move public content to the edge
+
 ### Incident
 
 Traffic becomes geographically distributed. Product images dominate bandwidth and distant users experience slow first-byte times.
@@ -341,12 +385,12 @@ Traffic becomes geographically distributed. Product images dominate bandwidth an
 
 ### Evidence available
 
-- Far-region TTFB is 1,400 ms.
-- Images are 78% of transferred bytes.
-- Origin egress is 1.2 Gbit/s and origin traffic 850 RPS.
-- App CPU is 58%; DB CPU is 39%.
-- The same assets are served repeatedly from the primary region.
-- Geographic network time dominates application processing for distant users.
+- `L6-E1` — Far-region TTFB is 1,400 ms. **Decisive.**
+- `L6-E2` — Images are 78% of transferred bytes. **Decisive.**
+- `L6-E3` — Origin egress is 1.2 Gbit/s and origin traffic 850 RPS. **Supporting.**
+- `L6-E4` — App CPU is 58%; DB CPU is 39%. **Supporting.**
+- `L6-E5` — The same public, versioned assets are served repeatedly from the primary region. **Decisive.**
+- `L6-E6` — Geographic network time dominates application processing for distant users. **Supporting.**
 
 ### Options
 
@@ -356,7 +400,7 @@ Traffic becomes geographically distributed. Product images dominate bandwidth an
 | Run application fleets in Europe, Asia, and America against one primary database | €1,600 + 7 points | Brings compute closer to users | Costly partial fix; cross-region data calls and consistency remain |
 | Resize and recompress every image inside the app per request | €0 + 4 points | Reduces response bytes without a new vendor | Worsens app CPU and repeats transformation work |
 | Add a larger Redis cache in the origin region | €180 + 4 points | Speeds repeated response generation | Partial; does not remove geographic network time or image egress |
-| Cache every GET response publicly for 10 minutes | €180 + 2 points | Maximizes offload | Unsafe data exposure and stale personalized responses |
+| Cache all catalogue responses using URL-only keys | €180 + 2 points | Maximizes catalogue offload with a simple policy | Breaks an invariant when personalized prices or account context share a URL |
 
 ### Recommended reasoning
 
@@ -382,6 +426,9 @@ What fields belong in the edge cache key, and which would create an unacceptable
 
 ## Level 7 — Route eligible reads to replicas
 
+- **Participant title:** The overloaded primary
+- **Technique title after reveal:** Route eligible reads to replicas
+
 ### Incident
 
 Product reads and internal reporting drive the primary database to 91% CPU. Writes are only 18% of operations, but checkout latency is now at risk.
@@ -395,12 +442,12 @@ Product reads and internal reporting drive the primary database to 91% CPU. Writ
 
 ### Evidence available
 
-- Reads are 82% of operations.
-- Primary read IOPS are 88% of capacity; write IOPS are 31%.
-- Primary CPU is 91% and checkout p95 is 860 ms.
-- 72% of reads are classified as replica-eligible.
-- Immediate order history is a read-your-own-write path.
-- Report queries contribute 27% of primary read I/O.
+- `L7-E1` — Reads are 82% of operations. **Decisive.**
+- `L7-E2` — Primary read IOPS are 88% of capacity; write IOPS are 31%. **Decisive.**
+- `L7-E3` — Primary CPU is 91% and checkout p95 is 860 ms. **Supporting.**
+- `L7-E4` — Seventy-two percent of reads tolerate replica lag under the stated freshness contracts. **Decisive.**
+- `L7-E5` — Immediate order history is a read-your-own-write path. **Supporting.**
+- `L7-E6` — Report queries contribute 27% of primary read I/O. **Supporting.**
 
 ### Options
 
@@ -408,9 +455,9 @@ Product reads and internal reporting drive the primary database to 91% CPU. Writ
 |---|---:|---|---|
 | Add replicas with consistency-aware routing, lag monitoring, and primary stickiness after writes | €550 + 4 points | Moves measured eligible reads while preserving immediate order visibility | **Best next change** |
 | Shard customers across multiple primary databases | €1,800 + 10 points | Distributes both reads and writes | Premature; write capacity is healthy and operational cost is high |
-| Cache all admin reports for 10 minutes | €180 + 3 points | Removes repeated reporting reads cheaply | Partial and violates the 60-second freshness requirement |
+| Cache admin reports for 45 seconds | €180 + 3 points | Meets freshness and removes repeated report executions | Partial; it does not move the larger catalogue read share or protect uncached queries |
 | Vertically scale the primary | €800 + 1 point | Immediate, low-engineering relief | Viable temporary option, but reads and reports still compete with writes |
-| Lower the transaction isolation level for the whole system | €0 + 2 points | May reduce locking and increase throughput | Unsafe and does not address read I/O saturation |
+| Lower the transaction isolation level for the whole system | €0 + 2 points | May reduce locking and increase throughput | Breaks correctness expectations and does not address read I/O saturation |
 
 ### Recommended reasoning
 
@@ -436,6 +483,9 @@ How long should primary stickiness last after a write, and how can the applicati
 
 ## Level 8 — Separate analytical workloads
 
+- **Participant title:** Reports overwhelm operations
+- **Technique title after reveal:** Separate analytical workloads
+
 ### Incident
 
 Management asks for multi-year dashboards. Reports scan 180 GB and run for 210 seconds. Even a reporting replica falls 95 seconds behind during refresh.
@@ -449,11 +499,11 @@ Management asks for multi-year dashboards. Reports scan 180 GB and run for 210 s
 
 ### Evidence available
 
-- Report queries scan millions of rows and use dimensions absent from the OLTP schema.
-- Adding report indexes increases order-write cost.
-- The reporting replica lag exceeds the 60-second operational-report threshold.
-- Most dashboards do not need transaction-level freshness.
-- Report concurrency and historical range are growing faster than checkout volume.
+- `L8-E1` — Report queries scan millions of rows and use dimensions absent from the OLTP schema. **Decisive.**
+- `L8-E2` — Adding report indexes increases order-write cost. **Supporting.**
+- `L8-E3` — The reporting replica lag exceeds the 60-second operational-report threshold. **Decisive.**
+- `L8-E4` — Most dashboards allow five-minute freshness. **Decisive.**
+- `L8-E5` — Report concurrency and historical range are growing faster than checkout volume. **Supporting.**
 
 ### Options
 
@@ -489,6 +539,9 @@ Which record is authoritative when a business correction changes a historical or
 
 ## Level 9 — Separate the catalogue scaling boundary
 
+- **Participant title:** One fleet, two workloads
+- **Technique title after reveal:** Separate the catalogue scaling boundary
+
 ### Incident
 
 Catalogue traffic reaches 8,000 RPS while checkout remains at 30 orders/s. Twenty-four shared monolith instances are deployed mainly for browsing, and catalogue releases can still affect checkout.
@@ -496,18 +549,19 @@ Catalogue traffic reaches 8,000 RPS while checkout remains at 30 orders/s. Twent
 ### Constraints
 
 - Catalogue and checkout need independent scaling and deployment.
+- Catalogue p95 must return below 300 ms, and a catalogue deployment must not breach the checkout error objective.
 - Order, payment, and inventory correctness remain together.
 - The change must create a real failure boundary, not only a new repository.
 - Avoid a microservice per domain noun.
 
 ### Evidence available
 
-- Catalogue routes consume 88% of app CPU.
-- Checkout uses less than three instances of equivalent capacity.
-- Catalogue and checkout release at different frequencies.
-- A catalogue rendering regression recently raised checkout errors through shared resource exhaustion.
-- Catalogue uses read-oriented presentation data; checkout owns transactional state.
-- Shared database tables and synchronous internal calls would preserve a distributed monolith.
+- `L9-E1` — Catalogue routes consume 88% of app CPU. **Decisive.**
+- `L9-E2` — Checkout uses less than three instances of equivalent capacity. **Decisive.**
+- `L9-E3` — Catalogue and checkout release at different frequencies. **Supporting.**
+- `L9-E4` — A catalogue rendering regression recently raised checkout errors through shared resource exhaustion. **Decisive.**
+- `L9-E5` — Catalogue uses read-oriented presentation data; checkout owns transactional state. **Supporting.**
+- `L9-E6` — Shared database tables and synchronous internal calls would preserve a distributed monolith. **Context.**
 
 ### Options
 
@@ -543,6 +597,9 @@ Which catalogue data may be copied from transactional systems, and how should ow
 
 ## Level 10 — Preserve inventory correctness in a flash sale
 
+- **Participant title:** Five hundred units
+- **Technique title after reveal:** Preserve inventory under contention
+
 ### Incident
 
 Five hundred units go on sale. Twenty thousand users attempt checkout almost simultaneously. Inventory becomes negative and retries create duplicate orders.
@@ -556,12 +613,12 @@ Five hundred units go on sale. Twenty thousand users attempt checkout almost sim
 
 ### Evidence available
 
-- Current flow reads stock, checks it in application code, then writes a decrement.
-- Lock-wait p95 is 2,800 ms and transaction retries are 18%.
-- Duplicate orders are 2.1%; oversold units are 63.
-- More application instances increase concurrent writers and contention.
-- Only a few hot SKUs are affected.
-- Useful throughput is capped by 500 valid reservations, regardless of incoming attempt RPS.
+- `L10-E1` — Current flow reads stock, checks it in application code, then writes a decrement. **Decisive.**
+- `L10-E2` — Lock-wait p95 is 2,800 ms and transaction retries are 18%. **Supporting.**
+- `L10-E3` — Duplicate orders are 2.1%; oversold units are 63. **Decisive.**
+- `L10-E4` — More application instances increase concurrent writers and contention. **Decisive.**
+- `L10-E5` — Only a few hot SKUs are affected. **Supporting.**
+- `L10-E6` — Useful throughput is capped by 500 valid reservations, regardless of incoming attempt RPS. **Supporting.**
 
 ### Options
 
@@ -569,7 +626,7 @@ Five hundred units go on sale. Twenty thousand users attempt checkout almost sim
 |---|---:|---|---|
 | Acquire a distributed Redis lock per SKU before checkout | €180 + 5 points | Serializes hot-product access outside the database | Partial and fragile; lock failure does not enforce the source-of-truth invariant or idempotency |
 | Run all checkout transactions at serializable isolation | €0 + 4 points | Provides strong correctness guarantees | Correctness may improve, but aborts and hot-row contention can collapse throughput across unrelated products |
-| Use atomic conditional inventory writes, idempotency, expiring reservations, and bounded admission | €150 + 6 points | Enforces the invariant at the source and controls hot-key concurrency | **Best next change** |
+| Atomic reservation workflow | €150 + 6 points | Conditional source-of-truth writes preserve stock; idempotency, expiry, and bounded admission make concurrency recoverable | **Best next change** |
 | Add more checkout instances | €600 + 2 points | Processes more attempts in parallel | Harmful; increases contention and duplicate concurrency |
 | Accept all orders and cancel oversold orders later | €0 + 3 points | Maximizes apparent conversion | Violates the explicit business invariant and damages customer trust |
 
@@ -597,6 +654,9 @@ How should the system recover when payment succeeds just as a reservation expire
 
 ## Level 11 — Partition first; shard only with evidence
 
+- **Participant title:** Four terabytes and growing
+- **Technique title after reveal:** Partition first; shard only with evidence
+
 ### Incident
 
 The order database reaches 4.2 TB. Indexes total 1.6 TB, write IOPS reach 92%, checkout p95 is 1,200 ms, backups take 11 hours, and maintenance takes 7 hours.
@@ -608,14 +668,15 @@ The order database reaches 4.2 TB. Indexes total 1.6 TB, write IOPS reach 92%, c
 - Orders must remain queryable by customer.
 - Backup and restore procedures must remain testable.
 - A routing layer and cross-shard operations require strong justification.
+- Hot backup must complete under 3 hours, tested hot restore under 4 hours, scheduled maintenance under 2 hours, checkout p95 under 800 ms, and write I/O must retain at least 20% headroom at Peak.
 
 ### Phase A evidence
 
-- Seventy-eight percent of rows are older than two years.
-- Old data is rarely touched by operational endpoints.
-- Several indexes cover historical data but serve only recent queries.
-- Time-based pruning would remove most scanned partitions.
-- The primary is near storage and write-maintenance limits, but a clean hot-set estimate is 650 GB.
+- `L11-E1` — Seventy-eight percent of rows are older than two years. **Decisive.**
+- `L11-E2` — Old data is rarely touched by operational endpoints. **Supporting.**
+- `L11-E3` — Several indexes cover historical data but serve only recent queries. **Decisive.**
+- `L11-E4` — Time-based pruning would remove most scanned partitions. **Supporting.**
+- `L11-E5` — The primary is near storage and write-maintenance limits, but a clean hot-set estimate is 650 GB. **Decisive.**
 
 ### Phase A options
 
@@ -641,11 +702,11 @@ The order database reaches 4.2 TB. Indexes total 1.6 TB, write IOPS reach 92%, c
 
 ### Phase A result
 
-The hot set becomes 650 GB, indexes 340 GB, write IOPS 68%, checkout p95 650 ms, and hot backup 2.1 hours. Sharding is not yet justified for current load.
+The hot set becomes 650 GB, indexes 340 GB, write IOPS 68%, checkout p95 650 ms, hot backup 2.1 hours, tested hot restore 3.4 hours, and scheduled maintenance 1.5 hours. Every Phase A target is restored, so sharding is not yet justified for current load.
 
 ### Optional Phase B senior extension
 
-The core workshop ends this level after Phase A. If time and audience seniority permit, the facilitator may enable a non-scored “two years later” projection in which writes again exceed one primary after partitioning. Teams choose a shard key:
+The core workshop ends this level after Phase A. If eight additional minutes and audience seniority permit, the facilitator may enable a non-scored “two years later” projection in which writes again exceed one primary after partitioning. A persistent badge reads `TWO YEARS LATER — NON-SCORED PROJECTION`. Teams choose a shard key:
 
 | Candidate | Evaluation |
 |---|---|
@@ -654,7 +715,7 @@ The core workshop ends this level after Phase A. If time and audience seniority 
 | Random order ID | Balances writes but makes customer and support queries fan out |
 | Geographic region | Useful only when residency and regional locality outweigh customer movement and skew |
 
-The architecture reveals shards only inside the optional extension. Phase B does not alter the canonical architecture inherited by Level 12. Cross-shard reporting remains in the analytical system.
+The architecture reveals shards only inside the optional extension. `Exit extension` restores the partitioned canonical topology. Phase B does not alter the architecture inherited by Level 12. Cross-shard reporting remains in the analytical system.
 
 ### Stretch question
 
@@ -663,6 +724,9 @@ What observable threshold should trigger Phase B rather than another vertical-ca
 ---
 
 ## Level 12 — Design for failure under load
+
+- **Participant title:** Everything fails at once
+- **Technique title after reveal:** Design for failure under load
 
 ### Incident
 
@@ -679,14 +743,14 @@ At normal peak traffic, the facilitator injects several failures: one availabili
 
 ### Evidence available
 
-- A shared 30-second timeout exists on every dependency.
-- Retries are immediate and unbounded in two clients.
-- App, worker, and dependency calls share pools.
-- Checkout errors reach 12% and SLO burn 22×.
-- Queue oldest age reaches 26 minutes when workers stop.
-- One deployment reaches all instances at once.
-- A Redis restart causes a database-read surge.
-- Confirmed orders remain durable, but customers receive ambiguous timeout responses.
+- `L12-E1` — A shared 30-second timeout exists on every dependency. **Decisive.**
+- `L12-E2` — Retries are immediate and unbounded in two clients. **Decisive.**
+- `L12-E3` — App, worker, and dependency calls share pools. **Decisive.**
+- `L12-E4` — Checkout errors reach 12% and SLO burn 22×. **Supporting.**
+- `L12-E5` — Queue oldest age reaches 26 minutes when workers stop. **Supporting.**
+- `L12-E6` — One deployment reaches all instances at once. **Decisive.**
+- `L12-E7` — A Redis restart causes a database-read surge. **Supporting.**
+- `L12-E8` — Confirmed orders remain durable, but customers receive ambiguous timeout responses. **Decisive.**
 
 ### Failure waves
 
@@ -698,29 +762,47 @@ The capstone reveals evidence in three waves before the team commits one final a
 
 Evidence from earlier waves remains visible. This staging reduces cognitive overload without turning the capstone into three unrelated quizzes.
 
+The capstone overrides the shared two-evidence rule: teams cite at least one observation from each wave and name the invariant their action set prioritizes. Its 25 evidence points allocate 8 per wave plus 1 for the correctly prioritized invariant; a supporting rather than decisive observation earns half of that wave's allocation.
+
 ### Capstone decision format
 
-Teams have **16 resilience points** and may choose at most five actions.
+Teams have **12 resilience points** and may choose at most four actions. Unspent points are allowed and earn no bonus. Several plausible sets fit the arithmetic; teams must prioritize the stated invariants rather than maximize spend.
 
-| Action | Points | Evaluation |
-|---|---:|---|
-| Dependency-specific timeout budgets; bounded retries with backoff, jitter, and idempotency | 3 | Recommended; prevents long hangs and retry storms |
-| Circuit breakers and explicit graceful fallbacks for catalogue, email, and analytics | 3 | Recommended; preserves core journeys while dependencies fail |
-| Bulkheads, bounded queues, and backpressure between checkout and secondary work | 3 | Recommended; prevents one failure from consuming all resources |
-| Multi-zone application placement, automated database failover, and tested restore/runbook | 5 | Recommended; addresses zone loss and durable recovery |
-| Progressive delivery with health-based canary rollback | 2 | Recommended; contains a faulty release before fleet-wide impact |
-| Retry every failure until it succeeds | 1 | Harmful; amplifies overload and duplicates effects |
-| Raise all timeouts to 60 seconds | 1 | Harmful; consumes capacity and delays failure detection |
-| Build active-active multi-region writes for every component | 12 | Powerful but unjustified complexity and new consistency risk for this incident |
-| Stop checkout whenever analytics, email, cache, or a replica is unhealthy | 1 | Over-coupled; sacrifices the critical journey for degradable dependencies |
+| ID | Participant action | Points | Mechanism and facilitator evaluation |
+|---|---|---:|---|
+| L12-A1 | Dependency budgets | 2 | Dependency-specific timeouts plus bounded retries, backoff, jitter, and idempotency; recommended for long hangs and retry amplification |
+| L12-A2 | Graceful isolation | 3 | Circuit breakers and explicit fallbacks for catalogue, email, and analytics; valuable availability improvement, but existing asynchronous boundaries make it secondary to checkout containment |
+| L12-A3 | Resource containment | 3 | Checkout bulkheads, bounded worker queues, and backpressure; recommended for shared-pool exhaustion and backlog |
+| L12-A4 | Zone recovery | 4 | Multi-zone application placement, automated database failover, and tested restore/runbook; recommended for zone loss and durable recovery |
+| L12-A5 | Progressive delivery | 2 | Health-based canary rollback; recommended for the faulty deployment |
+| L12-A6 | Worker elasticity | 2 | Scale workers from oldest-job age; helps backlog recovery but does not isolate checkout or poison jobs |
+| L12-A7 | Cache refill shielding | 2 | Rate-limit and coalesce cache refill; contains the Redis restart surge but covers only one dependency |
+| L12-A8 | Larger shared pools | 2 | Buys short-term concurrency but preserves shared failure and can increase downstream pressure |
+| L12-A9 | Active-active writes | 7 | Covers a wider regional failure but adds unjustified consistency, conflict, and operating complexity for this incident |
 
-The recommended set uses all 16 points. If a team chooses a different set, the result simulation shows which failure remains uncontained. Action order is shuffled, but the running point total and remaining action slots stay visible.
+The canonical smallest sufficient set is `L12-A1`, `L12-A3`, `L12-A4`, and `L12-A5`, using 11 points. It deliberately leaves one point unspent. Replacing `L12-A1` with `L12-A2` also restores the displayed constraints but uses all 12 points and adds broader fallback policy while leaving retry behavior less directly governed; classify it as `Restores the SLO with excess cost or complexity`. Substituting `L12-A6` or `L12-A7` leaves a current failure uncontained. Before commit, action order is shuffled and only the running point total and remaining slots are visible. Coverage and uncovered risks appear only after commit.
+
+### Failure-coverage matrix
+
+This matrix appears only after commit and drives the deterministic remaining-failure outcome.
+
+| Action | Dependency latency | Retry amplification | Shared pools / backlog | Zone and durability | Bad deployment |
+|---|---|---|---|---|---|
+| L12-A1 | Strong | Strong | Partial | None | None |
+| L12-A2 | Strong | Partial | Partial | None | None |
+| L12-A3 | Partial | Strong | Strong | None | None |
+| L12-A4 | None | None | None | Strong | None |
+| L12-A5 | None | None | None | None | Strong |
+| L12-A6 | None | None | Partial | None | None |
+| L12-A7 | Partial | Partial | Partial | None | None |
+| L12-A8 | None | Worsens | Partial | None | None |
+| L12-A9 | None | None | None | Strong, with new conflict risk | None |
 
 ### Recommended reasoning
 
 - **Failure mechanism:** dependency failure amplification and shared failure domains, combined with a zone loss.
 - **Evidence:** unbounded immediate retries, shared pools, 30-second timeouts, 22× burn, and queue age growth.
-- **Why this set fits:** timeout/retry policy limits calls; circuit breakers and fallbacks degrade safely; bulkheads/backpressure contain overload; multi-zone failover handles infrastructure loss; progressive delivery contains harmful change.
+- **Why this set fits:** dependency budgets limit calls; bulkheads/backpressure contain overload; multi-zone failover handles infrastructure loss; progressive delivery contains harmful change. Existing asynchronous email/analytics paths may recover later, so graceful-isolation work is valuable but not required for the smallest sufficient set.
 - **New risk:** incorrect timeout budgets, breaker oscillation, dropped or rejected work under backpressure, failover data risk, false-positive rollback, and higher operational testing burden.
 
 ### Fit boundary and verification
@@ -730,7 +812,7 @@ The recommended set uses all 16 points. If a team chooses a different set, the r
 
 ### Final result
 
-Checkout errors remain at 0.7%, checkout p95 remains 690 ms, confirmed order loss is zero, catalogue serves bounded stale data, emails are delayed, analytics becomes stale, and the queue recovers within 12 minutes. A canary control stops the faulty deployment before full rollout.
+Checkout errors remain at 0.7%, checkout p95 remains 690 ms, and confirmed order loss is zero. Non-critical catalogue requests may be temporarily limited during cache refill, emails are delayed, analytics becomes stale, and the queue recovers within 12 minutes. A canary control stops the faulty deployment before full rollout. Other action sets use the coverage matrix to name and simulate the remaining failure.
 
 ### Final retrospective prompts
 
@@ -743,11 +825,11 @@ Checkout errors remain at 0.7%, checkout p95 remains 690 ms, confirmed order los
 
 ---
 
-## 3. Technique-rationale summary
+## 4. Technique-rationale summary
 
 | Level | Technique | Why it fits now | Primary new risk |
 |---:|---|---|---|
-| 1 | SLOs and observability | Decisions lack measurable targets and evidence | Noise and alert fatigue |
+| 1 | SLOs, observability, and stepped capacity test | Decisions lack measurable targets and representative capacity evidence | False confidence from one workload mix; telemetry noise |
 | 2 | Query and index optimization | Database work per request is wasteful | Write overhead and query-plan regressions |
 | 3 | Selective caching | Reads are repetitive and bounded-stale | Invalidation and stampede |
 | 4 | Jobs and transactional outbox | Slow side effects are not required for confirmation | Retries, duplicates, and backlog |
@@ -760,10 +842,11 @@ Checkout errors remain at 0.7%, checkout p95 remains 690 ms, confirmed order los
 | 11 | Partition/archive, then optional sharding | Cold history dominates before a distributed write limit is proven | Data lifecycle, routing, and rebalance |
 | 12 | Layered resilience | Dependencies and zones fail under peak load | Policy tuning and operational complexity |
 
-## 4. Content quality checklist for every option set
+## 5. Content quality checklist for every option set
 
 - All options are grammatically parallel actions.
 - The recommended choice is not consistently the longest card or the same card position.
+- Titles are comparable in length and tone; safeguard rows use the same structure and level of detail.
 - At least one alternative is viable but more expensive or temporary.
 - At least one alternative is a correct technique aimed at the wrong resource or wrong time.
 - At most one alternative is classified as unsafe; the set is not filled with obviously bad answers.
