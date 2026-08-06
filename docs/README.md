@@ -1,6 +1,6 @@
 # ScaleShop Scalability Lab — specification index
 
-Status: **persona-reviewed draft; implementation is intentionally blocked until approval and content completion**.
+Status: **implemented pilot; content calibration and acceptance review remain in progress**.
 
 This folder defines the next version of the ScaleShop Scalability Lab. It preserves the strongest parts of the original simulation—12 progressive incidents, animated metrics, evidence discovery, upgrade choices, facilitator answers, before/after comparison, and a canonical cost ledger—while making the experience clearer, fairer, and more challenging.
 
@@ -11,6 +11,7 @@ This folder defines the next version of the ScaleShop Scalability Lab. It preser
 - [metrics-spec.md](metrics-spec.md) — metric vocabulary, credibility rules, scenario values, charts, thresholds, and simulation behavior.
 - [architecture-spec.md](architecture-spec.md) — the consistent architecture-diagram language and the exact topology changes shown at every level.
 - [facilitator-spec.md](facilitator-spec.md) — the 12-person operating model, 180-minute run sheet, presenter-safe controls, run cards, recovery behavior, and inclusion protocol.
+- [review-round-2.md](review-round-2.md) — post-implementation Staff+ critique and prioritized acceptance backlog beyond level metrics.
 
 ## Recommended review baseline
 
@@ -40,14 +41,11 @@ This review version specifies a client-only simulation:
 
 All level data will be static, all metric motion will be simulated, and optional progress will be stored only in the current browser.
 
-## Implementation gate
+## Implementation approval record
 
-No application code, scaffolding, dependency installation, or deployment should begin while this document says `persona-reviewed draft`. Approval requires both:
+The repository owner explicitly approved implementation after the persona review. The current application is a pilot implementation, not evidence that every acceptance criterion or content-authoring cell is complete.
 
-1. Explicit acceptance or revision of the six product decisions above.
-2. Completion of the content-authoring gate in `product-spec.md`: all stable IDs, hints, hypotheses, option metadata, preset values, option-specific metric outcomes, rubric mappings, glossary entries, and facilitator run cards must be authored and reviewed for all 12 levels.
-
-Implementation must not invent missing workshop content.
+Remaining open content—especially authored traffic presets, complete option-specific outcomes, glossary coverage, facilitator run cards, and Level 12 combination results—must stay visible in review rather than being treated as complete by implication.
 
 ## Review record
 

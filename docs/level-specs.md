@@ -113,7 +113,7 @@ ScaleShop has launched. It serves 2 RPS and everything appears healthy. The foun
 | Option | Cost | Why it is plausible | Outcome |
 |---|---:|---|---|
 | Define journey SLOs, instrument RED/USE metrics and traces, then run a representative stepped load test | €120 + 4 points | Establishes targets and a reproducible capacity envelope before optimization | **Best next change** |
-| Run one 10,000-RPS load test and record the average latency | €0 + 2 points | Produces a capacity number quickly | Partial: no tail latency, steady-state baseline, or production detection |
+| Run a short test up to 50 RPS and record aggregate latency | €0 + 2 points | Produces an initial observation quickly | Partial: no representative workload mix, tail objective, sustained baseline, or production detection |
 | Upgrade PostgreSQL before launch traffic grows | €700 + 1 point | Adds headroom to a critical dependency | Premature: no evidence the database is limiting |
 | Buy an APM tool but keep default dashboards and alerts | €250 + 2 points | Adds broad visibility with little setup | Viable but incomplete: telemetry without explicit service objectives |
 | Add Redis to protect the database | €180 + 4 points | Common early scaling pattern | Premature: adds invalidation complexity to a healthy system |
@@ -488,11 +488,12 @@ How long should primary stickiness last after a write, and how can the applicati
 
 ### Incident
 
-Management asks for multi-year dashboards. Reports scan 180 GB and run for 210 seconds. Even a reporting replica falls 95 seconds behind during refresh.
+Management asks for multi-year dashboards. Reports scan 180 GB and run for 210 seconds. Even a reporting replica falls 95 seconds behind during refresh, and checkout p95 reaches 860 ms.
 
 ### Constraints
 
 - Dashboards may be up to 5 minutes stale.
+- Priority dashboards must complete within 15 seconds.
 - Checkout must not compete with analytical scans.
 - Historical corrections must propagate.
 - Analytical totals must be reconcilable with transactional records.
@@ -602,7 +603,7 @@ Which catalogue data may be copied from transactional systems, and how should ow
 
 ### Incident
 
-Five hundred units go on sale. Twenty thousand users attempt checkout almost simultaneously. Inventory becomes negative and retries create duplicate orders.
+Five hundred units go on sale. Twenty thousand users attempt checkout in 60 seconds. The system accepts 563 orders for 500 units, creating 63 oversold units; retries also create duplicates and ambiguous customer outcomes.
 
 ### Constraints
 
@@ -615,7 +616,7 @@ Five hundred units go on sale. Twenty thousand users attempt checkout almost sim
 
 - `L10-E1` — Current flow reads stock, checks it in application code, then writes a decrement. **Decisive.**
 - `L10-E2` — Lock-wait p95 is 2,800 ms and transaction retries are 18%. **Supporting.**
-- `L10-E3` — Duplicate orders are 2.1%; oversold units are 63. **Decisive.**
+- `L10-E3` — The system accepted 563 orders for 500 units; duplicate orders are 2.1% and oversold units are 63. **Decisive.**
 - `L10-E4` — More application instances increase concurrent writers and contention. **Decisive.**
 - `L10-E5` — Only a few hot SKUs are affected. **Supporting.**
 - `L10-E6` — Useful throughput is capped by 500 valid reservations, regardless of incoming attempt RPS. **Supporting.**
@@ -644,7 +645,7 @@ Five hundred units go on sale. Twenty thousand users attempt checkout almost sim
 
 ### Result
 
-Exactly 500 reservations are accepted, oversold units and duplicates are zero, and checkout outcome p95 is 720 ms. Excess requests receive an explicit sold-out, rejected, or queued result rather than timing out unpredictably.
+Exactly 500 reservations are accepted and produce 500 unambiguous valid outcomes. Oversold units and duplicates are zero, and checkout outcome p95 is 720 ms. Excess requests receive an explicit sold-out, rejected, or queued result rather than timing out unpredictably.
 
 ### Stretch question
 

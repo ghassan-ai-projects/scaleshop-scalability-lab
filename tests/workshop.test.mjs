@@ -27,6 +27,15 @@ test("metric thresholds distinguish healthy, risk, and breached", () => {
   assert.equal(formatMetric(1_200, latency), "1,200 ms");
 });
 
+test("diagnostic, unavailable, and exact-target metrics are not mislabelled", () => {
+  assert.equal(metricStatus(78, { ...latency, kind: "observation" }), "observed");
+  assert.equal(metricStatus(null, latency), "observed");
+  assert.equal(formatMetric(null, latency), "N/A");
+  const exact = { ...latency, threshold: 500, direction: "equal", kind: "invariant" };
+  assert.equal(metricStatus(563, exact), "breached");
+  assert.equal(metricStatus(500, exact), "healthy");
+});
+
 test("traffic presets never mutate the supplied metric", () => {
   const original = structuredClone(latency);
   assert.ok(presetValue(latency, "normal") < presetValue(latency, "incident"));
@@ -68,4 +77,6 @@ test("content source defines all twelve levels and required investigation fields
   assert.equal((source.match(/canonicalOptionIds:/g) ?? []).length, 12);
   assert.equal((source.match(/hints:/g) ?? []).length, 12);
   assert.match(source, /capstone:\s*\{ budget: 12, maxSelections: 4, evidenceRequired: 3 \}/);
+  assert.match(source, /"Orders accepted", 563, 500/);
+  assert.equal((source.match(/"decisive", [123]\)/g) ?? []).length, 6);
 });

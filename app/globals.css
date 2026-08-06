@@ -120,13 +120,16 @@ a { color: inherit; }
 .metric-card.status-breached { border-top-color: var(--red); }
 .metric-card.status-risk { border-top-color: var(--amber); }
 .metric-card.status-healthy { border-top-color: var(--mint); }
+.metric-card.status-observed { border-top-color: var(--blue); }
 .metric-topline { display: flex; justify-content: space-between; gap: .5rem; color: var(--quiet); font-size: .64rem; font-weight: 750; }
 .status-word { text-transform: uppercase; }
 .status-breached .status-word, .status-breached.metric-card > strong { color: var(--red); }
 .status-risk .status-word, .status-risk.metric-card > strong { color: var(--amber); }
 .status-healthy .status-word, .status-healthy.metric-card > strong { color: var(--mint); }
+.status-observed .status-word, .status-observed.metric-card > strong { color: var(--blue); }
 .metric-card > strong { display: block; margin: .65rem 0; font: 800 clamp(1.15rem, 2vw, 1.65rem)/1 ui-monospace, monospace; letter-spacing: -.045em; }
 .metric-card > small { color: var(--quiet); font-size: .62rem; }
+.metric-expand { display: block; margin: .85rem 0 0 auto; padding: .55rem 0; border: 0; background: transparent; color: var(--mint); font-size: .72rem; font-weight: 800; }
 .spark-bars { display: flex; align-items: end; gap: 2px; height: 2.2rem; margin-bottom: .55rem; overflow: hidden; }
 .spark-bars i { flex: 1; min-width: 1px; border-radius: 1px; background: currentColor; opacity: .34; animation: pulse-bar 2.8s ease-in-out infinite alternate; }
 .spark-bars i:nth-child(3n) { animation-delay: -.8s; }
@@ -185,6 +188,7 @@ tbody th { color: var(--muted); font-weight: 650; }
 .table-status.status-healthy { color: var(--mint); }
 .table-status.status-risk { color: var(--amber); }
 .table-status.status-breached { color: var(--red); }
+.table-status.status-observed { color: var(--blue); }
 .debrief-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin-top: .9rem; }
 .debrief-grid article { padding: .9rem; border: 1px solid var(--line); border-radius: .6rem; background: #091512; }
 .debrief-grid span, .cost-comparison span, .next-callout span { display: block; margin-bottom: .45rem; color: var(--quiet); font: 750 .6rem/1 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }

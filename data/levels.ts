@@ -3,13 +3,16 @@ import type { EvidenceRole, EvidenceSpec, LevelSpec, MetricSpec, OptionSpec, Out
 const metric = (
   id: string,
   label: string,
-  value: number,
-  after: number,
+  value: number | null,
+  after: number | null,
   unit: string,
   threshold?: number,
   direction: MetricSpec["direction"] = "lower",
   precision?: number,
-): MetricSpec => ({ id, label, value, after, unit, threshold, direction, precision });
+  kind: MetricSpec["kind"] = threshold === undefined ? "observation" : "slo",
+  window = "60-second window",
+  denominator?: string,
+): MetricSpec => ({ id, label, value, after, unit, threshold, direction, precision, kind, window, denominator });
 
 const evidence = (
   id: string,
@@ -18,7 +21,8 @@ const evidence = (
   value: string,
   meaning: string,
   role: EvidenceRole,
-): EvidenceSpec => ({ id, category, title, value, meaning, role });
+  wave?: EvidenceSpec["wave"],
+): EvidenceSpec => ({ id, category, title, value, meaning, role, wave });
 
 const leadTime = (points: number) =>
   points <= 2 ? "Up to 2 days" : points <= 4 ? "3–5 days" : points <= 7 ? "1–2 weeks" : "2–4 weeks";
@@ -33,7 +37,7 @@ const option = (
   kind: OutcomeKind,
   summary: string,
   risk: string,
-  metricEffects?: Record<string, number>,
+  metricEffects?: Record<string, number | null>,
   coverage?: string[],
 ): OptionSpec => ({
   id,
@@ -60,12 +64,14 @@ const earlyLevels: LevelSpec[] = [
     question: "What makes a capacity claim credible?",
     constraints: ["Catalogue p95 < 300 ms", "Checkout p95 < 800 ms", "Errors < 1%", "No lost confirmed orders", "Do not add capacity without evidence"],
     metrics: [
+      metric("offeredRps", "Offered requests", 2, 31, "RPS", undefined, "lower", 0, "observation", "60-second window", "All arriving requests"),
       metric("catalogueP95", "Catalogue p95", 180, 180, "ms", 300),
       metric("checkoutP95", "Checkout p95", 420, 420, "ms", 800),
       metric("errors", "Request errors", 0.1, 0.1, "%", 1, "lower", 1),
-      metric("appCpu", "Application CPU", 18, 18, "%", 80),
-      metric("dbCpu", "Database CPU", 12, 12, "%", 80),
+      metric("appCpu", "Application CPU", 18, 78, "%", 80, "lower", 0, "capacity"),
+      metric("dbCpu", "Database CPU", 12, 84, "%", 80, "lower", 0, "capacity"),
       metric("traceCoverage", "Trace coverage", 0, 98, "%", 95, "higher"),
+      metric("sustainableRps", "Sustainable capacity", null, 28, "RPS", undefined, "lower", 0, "observation", "Representative stepped test"),
     ],
     evidence: [
       evidence("L1-E1", "Application", "Access logs", "Status and duration only; no route percentiles", "Logs show individual requests, not whether a journey meets a target.", "decisive"),
@@ -81,8 +87,8 @@ const earlyLevels: LevelSpec[] = [
       { id: "L1-H4", label: "Missing cache", score: 0 },
     ],
     options: [
-      option("L1-O1", "Define and measure", "Set journey SLOs, instrument RED/USE and traces, then run a representative stepped load test.", 120, 4, "Easy", "best", "Creates a reproducible envelope: 28 RPS sustained; catalogue p95 first breaches at 31 RPS.", "Telemetry noise, high-cardinality cost, and false confidence in one workload mix.", { traceCoverage: 98 }),
-      option("L1-O2", "One peak test", "Run one 10,000-RPS test and record average latency.", 0, 2, "Easy", "partial", "Produces a number but not a trustworthy service boundary.", "Averages hide tail latency and the unrealistic load obscures the first bottleneck."),
+      option("L1-O1", "Define and measure", "Set journey SLOs, instrument RED/USE and traces, then run a representative stepped load test.", 120, 4, "Easy", "best", "Creates a reproducible envelope: 28 RPS sustained; catalogue p95 first breaches at 31 RPS.", "Telemetry noise, high-cardinality cost, and false confidence in one workload mix.", { offeredRps: 31, traceCoverage: 98, sustainableRps: 28, appCpu: 78, dbCpu: 84 }),
+      option("L1-O2", "Run a short load test", "Step to 50 RPS for five minutes and record aggregate latency.", 0, 2, "Easy", "partial", "Produces an initial observation but not a representative operating boundary.", "Aggregate latency and a short run can hide tail behavior, workload mix, and saturation over time.", { offeredRps: 50 }),
       option("L1-O3", "Upgrade PostgreSQL", "Buy a larger database tier before traffic grows.", 700, 1, "Easy", "costly", "Adds unused headroom without improving knowledge.", "Recurring spend and no evidence that the database limits current service."),
       option("L1-O4", "Adopt default APM", "Buy an APM tool and keep its default dashboards and alerts.", 250, 2, "Easy", "partial", "Adds telemetry but no explicit operating contract.", "Noise and alerts that are disconnected from customer journeys."),
       option("L1-O5", "Add Redis", "Put a cache in front of the healthy database.", 180, 4, "Moderate", "partial", "May reduce reads later but does not answer the incident.", "Invalidation complexity before a repeated-read bottleneck exists."),
@@ -108,9 +114,12 @@ const earlyLevels: LevelSpec[] = [
     question: "Where is time spent, and how much work happens per request?",
     constraints: ["Catalogue data must be current", "Create at least 3× headroom", "Infrastructure budget is limited", "Avoid a new distributed component if code fixes suffice"],
     metrics: [
+      metric("offeredRps", "Offered catalogue load", 40, 40, "RPS", undefined, "lower", 0, "observation", "60-second window", "All arriving catalogue requests"),
+      metric("completedRps", "Completed catalogue work", 32, 40, "RPS", 40, "higher", 0, "capacity", "60-second window", "Successful catalogue responses"),
       metric("catalogueP95", "Catalogue p95", 1840, 190, "ms", 300),
       metric("queries", "SQL queries / request", 483, 6, "", 20),
-      metric("dbCpu", "Database CPU", 92, 34, "%", 80),
+      metric("dbCpu", "Database CPU", 92, 34, "%", 80, "lower", 0, "capacity"),
+      metric("sustainableRps", "Tested sustainable load", null, 120, "RPS", 120, "higher", 0, "capacity", "Representative stepped test"),
       metric("connections", "DB connections", 48, 18, "/ 50", 45),
       metric("poolWait", "Pool wait p95", 180, 12, "ms", 50),
       metric("appCpu", "Application CPU", 38, 36, "%", 80),
@@ -131,7 +140,7 @@ const earlyLevels: LevelSpec[] = [
     ],
     options: [
       option("L2-O1", "Add app instances", "Add five request handlers behind a load balancer.", 1000, 2, "Easy", "partial", "More handlers increase concurrent database pressure.", "The real bottleneck saturates sooner.", { dbCpu: 98, poolWait: 420 }),
-      option("L2-O2", "Reduce query work", "Batch related reads, paginate, select required columns, and add targeted indexes.", 0, 4, "Moderate", "best", "Removes measured waste and restores more than 3× headroom.", "Oversized joins and write-heavy indexes if plans are not reviewed.", { catalogueP95: 190, queries: 6, dbCpu: 34, connections: 18, poolWait: 12 }),
+      option("L2-O2", "Reduce query work", "Batch related reads, paginate, select required columns, and add targeted indexes.", 0, 4, "Moderate", "best", "Removes measured waste and restores more than 3× headroom.", "Oversized joins and write-heavy indexes if plans are not reviewed.", { offeredRps: 40, completedRps: 40, catalogueP95: 190, queries: 6, dbCpu: 34, sustainableRps: 120, connections: 18, poolWait: 12 }),
       option("L2-O3", "Cache all queries", "Put Redis in front of every product query.", 180, 4, "Moderate", "partial", "Hits improve, but inefficient misses remain and freshness becomes harder.", "Masks waste and adds invalidation before the access path is fixed."),
       option("L2-O4", "Scale the database", "Move PostgreSQL to a four-times-larger tier.", 800, 1, "Easy", "costly", "Restores temporary headroom but preserves 483 queries per request.", "Recurring cost and the same scaling slope."),
       option("L2-O5", "Raise pool limit", "Increase the connection pool from 50 to 200.", 0, 1, "Easy", "invariant", "Application wait falls briefly while database queueing worsens.", "Memory pressure and overload amplification.", { dbCpu: 100, poolWait: 70 }),
@@ -140,7 +149,7 @@ const earlyLevels: LevelSpec[] = [
     official: {
       bottleneck: "Excessive query work on PostgreSQL.", evidence: "483 queries per request and 92% DB CPU while app CPU is 38%.",
       fit: "It removes work rather than buying capacity for waste.", risk: "Incorrect eager loading, oversized joins, and write-costly indexes.",
-      verification: "Replay the same data and mix; verify query count, rows examined, write cost, p95, and pool wait.", next: "Efficient queries make repeated, bounded-stale catalogue reads the next pressure.",
+      verification: "Replay the same data and mix through 120 RPS; verify completed throughput, query count, rows examined, write cost, p95, and pool wait.", next: "Efficient queries make repeated, bounded-stale catalogue reads the next pressure.",
     },
     hints: ["Inspect the database portion of one catalogue trace.", "Compare work per request with resource saturation before buying capacity."],
     stretch: "When is vertical scaling still rational incident containment?",
@@ -155,7 +164,7 @@ const earlyLevels: LevelSpec[] = [
     constraints: ["Price staleness ≤ 30 s", "Descriptions/categories may be 2 min stale", "Inventory never uses cached availability", "Cache failure may slow—not stop—the shop"],
     metrics: [
       metric("catalogueP95", "Catalogue p95", 890, 95, "ms", 300), metric("dbReads", "Database reads", 7200, 1500, "/s", 2500),
-      metric("dbCpu", "Database CPU", 86, 32, "%", 80), metric("hotShare", "Top-50 key share", 71, 71, "%", 60, "higher"),
+      metric("dbCpu", "Database CPU", 86, 32, "%", 80, "lower", 0, "capacity"), metric("hotShare", "Top-50 key share", 71, 71, "%", undefined, "lower", 0, "observation", "60-second read window", "Share of catalogue reads"),
       metric("hitRatio", "Cache hit ratio", 0, 89, "%", 80, "higher"), metric("checkoutP95", "Checkout p95", 520, 500, "ms", 800),
     ],
     evidence: [
@@ -164,6 +173,7 @@ const earlyLevels: LevelSpec[] = [
       evidence("L3-E3", "Database", "Read rate", "7,200 reads / second", "Read work now dominates source capacity.", "decisive"),
       evidence("L3-E4", "Application", "Journey comparison", "Catalogue 890 ms · Checkout healthy", "The failure is isolated to a read-heavy journey.", "supporting"),
       evidence("L3-E5", "Business", "Change frequency", "10–20 updates / hour with field-level freshness limits", "Change frequency determines whether a copy can be safely stale.", "decisive"),
+      evidence("L3-E6", "Cache", "Cold-cache test", "Uncoalesced refill projects 310 concurrent source reads per hot key", "Miss behavior describes the source load created when a cached value is absent.", "supporting"),
     ],
     hypotheses: [
       { id: "L3-H1", label: "Repeated bounded-stale reads", score: 25 }, { id: "L3-H2", label: "Insufficient database tier", score: 10 },
@@ -195,8 +205,8 @@ const earlyLevels: LevelSpec[] = [
     constraints: ["Confirm only after payment and inventory commit", "Email within 30 s", "Analytics/warehouse may be eventual", "Never lose downstream work", "Retries must not duplicate invoices"],
     metrics: [
       metric("checkoutP95", "Checkout p95", 5800, 460, "ms", 800), metric("errors", "Checkout errors", 4.1, 0.5, "%", 1, "lower", 1),
-      metric("emailP95", "Email provider p95", 4300, 4300, "ms", 1000), metric("duplicates", "Duplicate invoices", 1.4, 0, "%", 0, "zero", 1),
-      metric("queueAge", "Oldest invoice job", 0, 8, "s", 30), metric("dbCpu", "Database CPU", 46, 48, "%", 80),
+      metric("emailP95", "Email provider p95", 4300, 4300, "ms", undefined, "lower", 0, "observation", "60-second dependency window"), metric("duplicates", "Duplicate invoices", 1.4, 0, "%", 0, "zero", 1, "invariant"),
+      metric("queueAge", "Oldest invoice job", null, 8, "s", 30), metric("queueRate", "Invoice processing rate", null, 15.4, "/s", 15, "higher", 1, "capacity"), metric("dbCpu", "Database CPU", 46, 48, "%", 80, "lower", 0, "capacity"),
     ],
     evidence: [
       evidence("L4-E1", "Application", "Checkout objective", "5,800 ms p95 · 4.1% errors", "The customer journey breaches both latency and error objectives.", "supporting"),
@@ -211,7 +221,7 @@ const earlyLevels: LevelSpec[] = [
     ],
     options: [
       option("L4-O1", "Add app instances", "Add concurrency to hide some blocking.", 600, 2, "Easy", "partial", "Provider latency remains on every checkout.", "More simultaneous blocked requests."),
-      option("L4-O2", "Use a durable outbox", "Commit the order and outbox together; relay idempotent jobs to workers.", 250, 5, "Moderate", "best", "Removes secondary latency and closes the commit-to-job gap.", "Backlog, retries, poison jobs, and eventual consistency.", { checkoutP95: 460, errors: 0.5, duplicates: 0, queueAge: 8 }),
+      option("L4-O2", "Use a durable outbox", "Commit the order and outbox together; relay idempotent jobs to workers.", 250, 5, "Moderate", "best", "Removes secondary latency and closes the commit-to-job gap.", "Backlog, retries, poison jobs, and eventual consistency.", { checkoutP95: 460, errors: 0.5, duplicates: 0, queueAge: 8, queueRate: 15.4 }),
       option("L4-O3", "Raise the timeout", "Wait up to 30 seconds for every side effect.", 0, 1, "Easy", "partial", "Some timeouts disappear but the provider stays on-path.", "Tied-up capacity and duplicate-producing retries."),
       option("L4-O4", "Poll order status", "Workers poll durable order-status columns for pending effects.", 100, 4, "Moderate", "costly", "Recovers after crashes but tightly couples jobs to the order database.", "Polling load and complex status transitions."),
       option("L4-O5", "Queue two stages", "Queue PDF/email but keep analytics and warehouse synchronous.", 180, 4, "Moderate", "partial", "Removes most latency but retains external failure on-path.", "Partial isolation and a handoff that still needs durability."),
@@ -234,9 +244,10 @@ const earlyLevels: LevelSpec[] = [
     question: "What prevents a second instance from being disposable?",
     constraints: ["Sessions survive instance loss", "Deployments drain safely", "Uploads work from any instance", "Support horizontal growth and one-instance failure"],
     metrics: [
-      metric("catalogueP95", "Catalogue p95", 1210, 220, "ms", 300), metric("appCpu", "Application CPU", 96, 45, "%", 80),
+      metric("catalogueP95", "Catalogue p95", 1210, 220, "ms", 300), metric("appCpu", "Max instance CPU", 96, 45, "%", 80, "lower", 0, "capacity"),
       metric("queueWait", "Request queue wait", 680, 35, "ms", 50), metric("errors", "Request errors", 3.8, 0.4, "%", 1, "lower", 1),
-      metric("dbCpu", "Database CPU", 41, 45, "%", 80), metric("instances", "Healthy instances", 1, 3, "", 3, "higher"),
+      metric("dbCpu", "Database CPU", 41, 45, "%", 80, "lower", 0, "capacity"), metric("instances", "Healthy instances", 1, 3, "", undefined, "lower", 0, "observation", "Current fleet topology"),
+      metric("loadSkew", "Instance load skew", null, 6, "%", 15, "lower", 0, "capacity"), metric("dbConnections", "Fleet DB connections", 18, 54, "", 120, "lower", 0, "capacity"),
     ],
     evidence: [
       evidence("L5-E1", "Capacity", "Resource comparison", "App 96% · DB 41%", "The saturated resource is application compute.", "decisive"),
@@ -252,7 +263,7 @@ const earlyLevels: LevelSpec[] = [
     ],
     options: [
       option("L5-O1", "Use a larger server", "Replace the app server with a four-times-larger machine.", 400, 1, "Easy", "costly", "Buys fast headroom but preserves one failure domain.", "A larger single ceiling and disruptive scaling."),
-      option("L5-O2", "Build a stateless fleet", "Add a load balancer, external sessions/files, health checks, and graceful drain.", 600, 4, "Moderate", "best", "Makes instances disposable so capacity and failure handling scale together.", "Load balancing, shared-state dependencies, and multiplied DB pools.", { catalogueP95: 220, appCpu: 45, queueWait: 35, errors: 0.4, instances: 3 }),
+      option("L5-O2", "Build a stateless fleet", "Add a load balancer, external sessions/files, health checks, and graceful drain.", 600, 4, "Moderate", "best", "Makes instances disposable so capacity and failure handling scale together.", "Load balancing, shared-state dependencies, and multiplied DB pools.", { catalogueP95: 220, appCpu: 45, queueWait: 35, errors: 0.4, instances: 3, loadSkew: 6, dbConnections: 54 }),
       option("L5-O3", "Use sticky sessions", "Add instances but keep session affinity and local uploads.", 600, 2, "Easy", "partial", "Adds throughput while retaining failure and deployment fragility.", "Lost sessions/files on failure and uneven load."),
       option("L5-O4", "Add a CDN", "Offload static assets at the edge.", 180, 3, "Moderate", "partial", "Reduces static work but the measured saturation is dynamic compute.", "New cache policy with little relief for the incident."),
       option("L5-O5", "Scale PostgreSQL", "Upgrade the database tier.", 800, 1, "Easy", "partial", "Changes a resource with substantial headroom.", "Recurring cost and no improvement to app queueing."),
@@ -275,9 +286,10 @@ const earlyLevels: LevelSpec[] = [
     question: "Is the time spent computing, storing, or travelling?",
     constraints: ["Assets are public and versioned", "Public catalogue may be briefly stale", "Never publicly cache account/cart/checkout/invoices", "Origin cost matters"],
     metrics: [
-      metric("farTtfb", "Far-region TTFB", 1400, 240, "ms", 300), metric("imageShare", "Image byte share", 78, 78, "%", 60),
+      metric("farTtfb", "Far-region catalogue TTFB", 1400, 240, "ms", 300), metric("imageShare", "Image byte share", 78, 78, "%", undefined, "lower", 0, "observation", "Page transfer", "Share of transferred bytes"),
       metric("originRps", "Origin requests", 850, 180, "RPS", 300), metric("egress", "Origin egress", 1200, 140, "Mbit/s", 250),
-      metric("edgeHit", "Eligible edge hits", 0, 91, "%", 85, "higher"), metric("appCpu", "Application CPU", 58, 42, "%", 80),
+      metric("edgeHit", "Eligible edge hits", null, 91, "%", 85, "higher", 0, "capacity", "60-second window", "Origin-eligible requests"), metric("appCpu", "Application CPU", 58, 42, "%", 80, "lower", 0, "capacity"),
+      metric("imageLoad", "Far-region image load p95", 3100, 620, "ms", 1000),
     ],
     evidence: [
       evidence("L6-E1", "Network", "Regional latency", "Far-region TTFB 1,400 ms", "Geographic comparison separates network time from origin processing.", "decisive"),
@@ -292,7 +304,7 @@ const earlyLevels: LevelSpec[] = [
       { id: "L6-H3", label: "Database latency", score: 0 }, { id: "L6-H4", label: "Missing regional writes", score: 10 },
     ],
     options: [
-      option("L6-O1", "Use the edge", "Cache versioned assets and selected public catalogue responses with explicit exclusions.", 180, 3, "Moderate", "best", "Avoids origin work and long round trips for eligible public content.", "Cache-key leaks, invalidation delay, and inconsistent edge behavior.", { farTtfb: 240, originRps: 180, egress: 140, edgeHit: 91, appCpu: 42 }),
+      option("L6-O1", "Use the edge", "Cache versioned assets and selected public catalogue responses with explicit exclusions.", 180, 3, "Moderate", "best", "Avoids origin work and long round trips for eligible public content.", "Cache-key leaks, invalidation delay, and inconsistent edge behavior.", { farTtfb: 240, originRps: 180, egress: 140, edgeHit: 91, appCpu: 42, imageLoad: 620 }),
       option("L6-O2", "Add regional fleets", "Run app fleets in three regions against one primary database.", 1600, 7, "Hard", "costly", "Moves compute closer but keeps cross-region data calls and consistency.", "High cost and more regional failure modes."),
       option("L6-O3", "Transform per request", "Resize and recompress every image inside the app on demand.", 0, 4, "Moderate", "partial", "Reduces bytes while adding repeated app CPU work.", "Compute saturation and duplicated transforms."),
       option("L6-O4", "Grow origin Redis", "Cache more rendered content in the primary region.", 180, 4, "Moderate", "partial", "Speeds origin generation but not geography or egress.", "More origin state without removing the long path."),
@@ -321,7 +333,8 @@ const lateLevels: LevelSpec[] = [
     metrics: [
       metric("checkoutP95", "Checkout p95", 860, 540, "ms", 800), metric("primaryCpu", "Primary CPU", 91, 52, "%", 80),
       metric("readIops", "Read IOPS", 88, 42, "% capacity", 80), metric("writeIops", "Write IOPS", 31, 32, "% capacity", 80),
-      metric("replicaShare", "Reads on replicas", 0, 72, "%", 65, "higher"), metric("replicaLag", "Replica lag p95", 0, 0.8, "s", 5, "lower", 1),
+      metric("replicaShare", "Reads on replicas", null, 72, "%", undefined, "lower", 0, "observation", "60-second window", "Share of all reads"), metric("replicaLag", "Replica lag p95", null, 0.8, "s", 5, "lower", 1),
+      metric("replicaLagMax", "Replica lag max", null, 1.6, "s", 5, "lower", 1), metric("rywFailures", "Read-your-own-write failures", 0, 0, "", 0, "zero", 0, "invariant"),
     ],
     evidence: [
       evidence("L7-E1", "Database", "Operation mix", "82% reads · 18% writes", "Operation mix indicates which capacity axis is under pressure.", "decisive"),
@@ -336,7 +349,7 @@ const lateLevels: LevelSpec[] = [
       { id: "L7-H3", label: "Lock contention", score: 5 }, { id: "L7-H4", label: "Reports only", score: 10 },
     ],
     options: [
-      option("L7-O1", "Route tolerant reads", "Add replicas, lag monitoring, consistency-aware routing, and primary stickiness after writes.", 550, 4, "Moderate", "best", "Moves measured eligible reads while protecting immediate order visibility.", "Lag, stale reads, routing mistakes, and failover complexity.", { checkoutP95: 540, primaryCpu: 52, readIops: 42, replicaShare: 72, replicaLag: 0.8 }),
+      option("L7-O1", "Route tolerant reads", "Add replicas, lag monitoring, consistency-aware routing, and primary stickiness after writes.", 550, 4, "Moderate", "best", "Moves measured eligible reads while protecting immediate order visibility.", "Lag, stale reads, routing mistakes, and failover complexity.", { checkoutP95: 540, primaryCpu: 52, readIops: 42, replicaShare: 72, replicaLag: 0.8, replicaLagMax: 1.6, rywFailures: 0 }),
       option("L7-O2", "Shard customers", "Distribute customers across multiple primary databases.", 1800, 10, "Hard", "costly", "Distributes reads and writes before write capacity requires it.", "Routing, rebalance, cross-shard work, and high cost."),
       option("L7-O3", "Cache reports", "Cache admin reports for 45 seconds.", 180, 3, "Easy", "partial", "Meets freshness and removes repeats, but not the larger catalogue read share.", "Invalidation and incomplete primary relief."),
       option("L7-O4", "Scale the primary", "Move the primary to a larger tier.", 800, 1, "Easy", "costly", "Creates fast temporary headroom while reads still compete with writes.", "Recurring cost and unchanged workload shape."),
@@ -358,11 +371,11 @@ const lateLevels: LevelSpec[] = [
     phase: "Isolate workloads",
     incident: "Multi-year dashboards scan 180 GB and run for 210 seconds. Even the reporting replica falls 95 seconds behind during refresh.",
     question: "Does this workload need a different server, or a different data model?",
-    constraints: ["Dashboards may be 5 min stale", "Checkout must not compete with scans", "Historical corrections propagate", "Totals reconcile with transactional records"],
+    constraints: ["Priority dashboards complete < 15 s", "Dashboards may be 5 min stale", "Checkout must not compete with scans", "Historical corrections propagate", "Totals reconcile with transactional records"],
     metrics: [
       metric("reportDuration", "Report duration", 210, 8, "s", 15), metric("bytesScanned", "Bytes scanned / report", 180, 12, "GB", 25),
-      metric("replicaLag", "OLTP replica lag", 95, 0.9, "s", 60, "lower", 1), metric("freshness", "Analytics freshness", 0, 3, "min", 5),
-      metric("checkoutP95", "Checkout p95", 780, 480, "ms", 800), metric("reconcile", "Reconciliation delta", 0.8, 0, "%", 0, "zero", 1),
+      metric("replicaLag", "OLTP replica lag", 95, 0.9, "s", 60, "lower", 1), metric("freshness", "Analytics freshness", null, 3, "min", 5),
+      metric("checkoutP95", "Checkout p95", 860, 480, "ms", 800), metric("reconcile", "Reconciliation delta", null, 0, "%", 0, "zero", 1, "invariant"),
     ],
     evidence: [
       evidence("L8-E1", "Analytics", "Query shape", "Millions of rows · dimensions absent from OLTP", "Analytical access differs from transactional point reads/writes.", "decisive"),
@@ -380,7 +393,7 @@ const lateLevels: LevelSpec[] = [
       option("L8-O2", "Split the service", "Deploy analytics code separately on the same replica.", 400, 5, "Moderate", "partial", "Separates code, not storage pressure.", "Cosmetic isolation and another deployment."),
       option("L8-O3", "Index every report", "Add reporting indexes to the transactional schema.", 0, 5, "Moderate", "partial", "Speeds known reports at the cost of writes and future flexibility.", "Write amplification and schema rigidity."),
       option("L8-O4", "Build an analytical path", "Stream or batch records into a reporting-oriented store with reconciliation.", 800, 6, "Hard", "best", "Matches the query model and accepted freshness while isolating checkout.", "Pipeline lag, ordering, schema evolution, backfills, and reconciliation.", { reportDuration: 8, bytesScanned: 12, replicaLag: 0.9, freshness: 3, checkoutP95: 480, reconcile: 0 }),
-      option("L8-O5", "Use materialized views", "Refresh a fixed set of views every five minutes.", 100, 4, "Moderate", "costly", "A viable smaller solution for fixed reports, but refresh scans and schema rigidity limit growth.", "Refresh spikes and limited exploratory dimensions."),
+      option("L8-O5", "Use materialized views", "Refresh a fixed set of views every five minutes.", 100, 4, "Moderate", "partial", "A viable smaller solution for fixed reports, but refresh scans and schema rigidity limit growth.", "Refresh spikes and limited exploratory dimensions."),
     ],
     canonicalOptionIds: ["L8-O4"], canonicalCost: 800, canonicalPoints: 6,
     official: {
@@ -400,9 +413,10 @@ const lateLevels: LevelSpec[] = [
     question: "Which measured differences justify a deployment boundary?",
     constraints: ["Independent scaling and deployment", "Keep order/payment/inventory correctness together", "Create a real failure boundary", "Avoid a service per noun"],
     metrics: [
-      metric("catalogueP95", "Catalogue p95", 410, 180, "ms", 300), metric("checkoutP95", "Checkout p95", 620, 460, "ms", 800),
-      metric("catalogueCpu", "CPU used by catalogue", 88, 62, "%", 75), metric("sharedInstances", "Shared instances", 24, 0, "", 0),
-      metric("catalogueInstances", "Catalogue instances", 0, 18, "", 1, "higher"), metric("checkoutInstances", "Checkout instances", 24, 3, "", 4),
+      metric("catalogueP95", "Catalogue p95", 410, 180, "ms", 300), metric("deployErrors", "Checkout errors during catalogue deploy", 3.4, 0.4, "%", 1, "lower", 1),
+      metric("catalogueCpu", "Shared-fleet CPU saturation", 88, 62, "%", 75, "lower", 0, "capacity"), metric("checkoutP95", "Checkout p95", 620, 460, "ms", 800),
+      metric("sharedInstances", "Shared instances", 24, 0, "", undefined, "lower", 0, "observation", "Deployment topology"),
+      metric("catalogueInstances", "Catalogue instances", null, 18, "", undefined, "lower", 0, "observation", "Deployment topology"), metric("checkoutInstances", "Checkout instances", 24, 3, "", undefined, "lower", 0, "observation", "Deployment topology"),
     ],
     evidence: [
       evidence("L9-E1", "Capacity", "CPU ownership", "Catalogue consumes 88% of app CPU", "One workload drives fleet size for another.", "decisive"),
@@ -417,7 +431,7 @@ const lateLevels: LevelSpec[] = [
       { id: "L9-H3", label: "Cache capacity", score: 5 }, { id: "L9-H4", label: "Frontend coupling only", score: 5 },
     ],
     options: [
-      option("L9-O1", "Extract catalogue capability", "Create one independently deployable catalogue boundary with explicit contracts and data ownership.", 500, 7, "Hard", "best", "Separates scaling, releases, data responsibility, and blast radius without over-decomposition.", "Network failure, contracts, data duplication, versioning, and tracing.", { catalogueP95: 180, checkoutP95: 460, catalogueCpu: 62, sharedInstances: 0, catalogueInstances: 18, checkoutInstances: 3 }),
+      option("L9-O1", "Extract catalogue capability", "Create one independently deployable catalogue boundary with explicit contracts and data ownership.", 500, 7, "Hard", "best", "Separates scaling, releases, data responsibility, and blast radius without over-decomposition.", "Network failure, contracts, data duplication, versioning, and tracing.", { catalogueP95: 180, deployErrors: 0.4, checkoutP95: 460, catalogueCpu: 62, sharedInstances: 0, catalogueInstances: 18, checkoutInstances: 3 }),
       option("L9-O2", "Split every domain", "Create services for products, categories, carts, orders, inventory, invoices, and users.", 1800, 12, "Hard", "costly", "Creates many boundaries without measured need.", "Coordination, network calls, operational overhead, and distributed transactions."),
       option("L9-O3", "Grow the monolith", "Increase the shared fleet from 24 to 40 instances.", 1000, 2, "Easy", "costly", "Restores capacity but preserves overprovisioning and blast radius.", "Recurring cost and shared deployments."),
       option("L9-O4", "Split the frontend", "Deploy the catalogue frontend independently.", 150, 3, "Moderate", "partial", "Improves UI releases while backend compute and failure remain shared.", "A cosmetic boundary with little capacity isolation."),
@@ -437,18 +451,19 @@ const lateLevels: LevelSpec[] = [
     participantTitle: "Five hundred units",
     techniqueTitle: "Preserve inventory under contention",
     phase: "Preserve correctness",
-    incident: "Twenty thousand users compete for 500 units. Inventory becomes negative and retries create duplicate orders. More checkout instances increase contention.",
+    incident: "Twenty thousand users compete for 500 units in 60 seconds. The system accepts 563 orders, including 63 beyond available stock; retries also create duplicates and ambiguous outcomes.",
     question: "What is useful throughput when only 500 successes are possible?",
     constraints: ["Reserved + confirmed ≤ stock", "Same idempotency key returns original result", "Excess demand may be rejected or queued", "Payment/reservation transitions are recoverable"],
     metrics: [
-      metric("attempts", "Offered attempts", 20000, 20000, "", 20000), metric("accepted", "Accepted reservations", 437, 500, "", 500, "higher"),
+      metric("attempts", "Offered attempts", 20000, 20000, "", undefined, "lower", 0, "observation", "60-second sale window", "All checkout attempts"), metric("accepted", "Orders accepted", 563, 500, "", 500, "equal", 0, "invariant"),
+      metric("useful", "Unambiguous valid outcomes", 437, 500, "", 500, "higher", 0, "capacity"), metric("checkoutP95", "Checkout outcome p95", 3600, 720, "ms", 800),
       metric("lockWait", "Lock wait p95", 2800, 420, "ms", 800), metric("retries", "Transaction retries", 18, 3, "%", 5),
-      metric("duplicates", "Duplicate orders", 2.1, 0, "%", 0, "zero", 1), metric("oversold", "Oversold units", 63, 0, "", 0, "zero"),
+      metric("duplicates", "Duplicate orders", 2.1, 0, "%", 0, "zero", 1, "invariant"), metric("oversold", "Oversold units", 63, 0, "", 0, "zero", 0, "invariant"),
     ],
     evidence: [
       evidence("L10-E1", "Correctness", "Inventory write", "Read stock → check in app → write decrement", "A split check/write allows concurrent requests to observe the same stock.", "decisive"),
       evidence("L10-E2", "Database", "Contention", "2,800 ms lock wait · 18% retries", "Hot-record concurrency is already collapsing useful throughput.", "supporting"),
-      evidence("L10-E3", "Business", "Invariant counts", "63 oversold units · 2.1% duplicate orders", "Business totals show correctness, not just latency, is failing.", "decisive"),
+      evidence("L10-E3", "Business", "Invariant accounting", "563 accepted for 500 units · 63 oversold · 2.1% duplicate orders", "Accepted, available, and duplicate totals expose whether the stock invariant holds.", "decisive"),
       evidence("L10-E4", "Capacity", "Scale-out experiment", "More instances increase writers and contention", "Handler capacity is not the limiting useful-work rate.", "decisive"),
       evidence("L10-E5", "Database", "Skew", "Only a few SKUs are hot", "A targeted hot-key policy avoids penalizing unrelated products.", "supporting"),
       evidence("L10-E6", "Business", "Useful throughput", "Only 500 valid reservations can succeed", "Attempt RPS is not the success objective.", "supporting"),
@@ -460,8 +475,8 @@ const lateLevels: LevelSpec[] = [
     options: [
       option("L10-O1", "Use a Redis lock", "Acquire a distributed lock per SKU before checkout.", 180, 5, "Moderate", "partial", "Serializes work outside the source of truth but does not enforce inventory or idempotency alone.", "Lease failure, split ownership, and recovery gaps."),
       option("L10-O2", "Use serializable mode", "Run every checkout transaction at serializable isolation.", 0, 4, "Moderate", "partial", "Improves correctness but hot-row aborts can collapse throughput broadly.", "Retry storms and unnecessary cost for unrelated SKUs."),
-      option("L10-O3", "Atomic reservation workflow", "Use conditional source writes, idempotency, expiring reservations, and bounded admission.", 150, 6, "Hard", "best", "Enforces the invariant at the source and limits hot-key concurrency.", "Expiry/payment races, fairness, reconciliation, and state-machine recovery.", { accepted: 500, lockWait: 420, retries: 3, duplicates: 0, oversold: 0 }),
-      option("L10-O4", "Add checkout instances", "Process more attempts in parallel.", 600, 2, "Easy", "partial", "Adds writers and worsens contention.", "Higher retries and oversell concurrency.", { lockWait: 4100, retries: 27, oversold: 91 }),
+      option("L10-O3", "Atomic reservation workflow", "Use conditional source writes, idempotency, expiring reservations, and bounded admission.", 150, 6, "Hard", "best", "Enforces the invariant at the source and limits hot-key concurrency.", "Expiry/payment races, fairness, reconciliation, and state-machine recovery.", { accepted: 500, useful: 500, checkoutP95: 720, lockWait: 420, retries: 3, duplicates: 0, oversold: 0 }),
+      option("L10-O4", "Add checkout instances", "Process more attempts in parallel.", 600, 2, "Easy", "partial", "Adds writers and worsens contention.", "Higher retries and oversell concurrency.", { accepted: 591, useful: 409, checkoutP95: 4900, lockWait: 4100, retries: 27, oversold: 91 }),
       option("L10-O5", "Cancel oversold orders", "Accept every order and reconcile inventory later.", 0, 3, "Hard", "invariant", "Maximizes apparent conversion while violating the explicit stock contract.", "Customer harm and irreversible trust loss."),
     ],
     canonicalOptionIds: ["L10-O3"], canonicalCost: 150, canonicalPoints: 6,
@@ -482,9 +497,10 @@ const lateLevels: LevelSpec[] = [
     question: "How much data must remain hot to meet operational objectives?",
     constraints: ["Most operational queries use 90 days", "Orders queryable by customer", "Hot backup < 3 h", "Hot restore < 4 h", "Maintenance < 2 h", "≥ 20% write headroom"],
     metrics: [
-      metric("hotSet", "Operational hot set", 4200, 650, "GB", 800), metric("indexes", "Index size", 1600, 340, "GB", 500),
+      metric("hotSet", "Primary operational dataset", 4200, 650, "GB", 800, "lower", 0, "capacity"), metric("indexes", "Index size", 1600, 340, "GB", undefined, "lower", 0, "observation", "Current primary"),
       metric("writeIops", "Write IOPS", 92, 68, "% capacity", 80), metric("checkoutP95", "Checkout p95", 1200, 650, "ms", 800),
-      metric("backup", "Hot backup", 11, 2.1, "h", 3, "lower", 1), metric("maintenance", "Maintenance", 7, 1.5, "h", 2, "lower", 1),
+      metric("backup", "Hot backup", 11, 2.1, "h", 3, "lower", 1), metric("restore", "Tested hot restore", 9.2, 3.4, "h", 4, "lower", 1), metric("maintenance", "Maintenance", 7, 1.5, "h", 2, "lower", 1),
+      metric("pruning", "Operational partition pruning", 0, 96, "%", 90, "higher", 0, "capacity", "Representative operational queries"),
     ],
     evidence: [
       evidence("L11-E1", "Data", "Historical share", "78% of rows are older than two years", "Age distribution indicates whether cold history dominates structures.", "decisive"),
@@ -499,7 +515,7 @@ const lateLevels: LevelSpec[] = [
     ],
     options: [
       option("L11-O1", "Double the storage tier", "Buy more storage and I/O capacity.", 1800, 1, "Easy", "costly", "Fast relief while backup and maintenance continue to scale with history.", "Large recurring cost and postponed lifecycle work."),
-      option("L11-O2", "Partition and archive", "Partition by time, archive cold data, prune indexes, and verify hot/full restore.", 300, 6, "Hard", "best", "Shrinks hot structures and restores every current target without routing.", "Partition lifecycle, archive correctness, restore, and accidental full scans.", { hotSet: 650, indexes: 340, writeIops: 68, checkoutP95: 650, backup: 2.1, maintenance: 1.5 }),
+      option("L11-O2", "Partition and archive", "Partition by time, archive cold data, prune indexes, and verify hot/full restore.", 300, 6, "Hard", "best", "Shrinks hot structures and restores every current target without routing.", "Partition lifecycle, archive correctness, restore, and accidental full scans.", { hotSet: 650, indexes: 340, writeIops: 68, checkoutP95: 650, backup: 2.1, restore: 3.4, maintenance: 1.5, pruning: 96 }),
       option("L11-O3", "Shard random orders", "Distribute random order IDs across primaries.", 2000, 10, "Hard", "partial", "Balances writes but scatters customer/support queries.", "Fan-out, routing, and cross-shard operations."),
       option("L11-O4", "Replace the database", "Migrate orders to a document database.", 2500, 14, "Hard", "costly", "Changes technology without evidence the data model is the root cause.", "Migration risk and operational retraining."),
       option("L11-O5", "Shard by region", "Route orders to geographic primaries.", 2000, 10, "Hard", "costly", "Creates locality if residency requires it, but current evidence does not.", "Skew, movement, and cross-region operations."),
@@ -522,20 +538,22 @@ const lateLevels: LevelSpec[] = [
     question: "Which protections preserve confirmed orders, and what risk will you deliberately leave uncovered?",
     constraints: ["Confirmed orders never disappear", "Checkout outranks email/analytics", "Catalogue may degrade", "Retries remain bounded", "Stop harmful rollout", "12 resilience points · max 4 actions"],
     metrics: [
-      metric("checkoutP95", "Checkout p95", 6200, 690, "ms", 800), metric("errors", "Checkout errors", 12, 0.7, "%", 1, "lower", 1),
-      metric("burn", "SLO burn rate", 22, 0.8, "×", 1, "lower", 1), metric("queueAge", "Oldest queued job", 26, 12, "min", 15),
+      metric("offeredCheckout", "Offered checkout", 30, 30, "/s", undefined, "lower", 0, "observation", "60-second window", "All arriving checkout requests"), metric("usefulCheckout", "Useful completion", 26.4, 29.8, "/s", 29.5, "higher", 1, "capacity", "60-second window", "Confirmed, non-duplicate outcomes"),
+      metric("errors", "Checkout errors", 12, 0.7, "%", 1, "lower", 1), metric("burn", "SLO burn rate", 22, 0.8, "×", 1, "lower", 1),
+      metric("checkoutP95", "Checkout p95", 6200, 690, "ms", 800),
+      metric("queueAge", "Oldest queued job", 26, 12, "min", 12),
       metric("amplification", "Retry amplification", 2.4, 1.1, "×", 1.2, "lower", 1), metric("orderLoss", "Confirmed order loss", 0, 0, "", 0, "zero"),
     ],
     evidence: [
-      evidence("L12-E1", "Dependencies", "Timeout policy", "Shared 30-second timeout on every dependency", "One budget ignores dependency criticality and request deadline.", "decisive"),
-      evidence("L12-E2", "Dependencies", "Retry policy", "Immediate, unbounded retries in two clients", "Retries can multiply offered load during failure.", "decisive"),
-      evidence("L12-E3", "Capacity", "Shared pools", "Checkout, workers, and dependencies share pools", "One failure can consume resources needed by critical work.", "decisive"),
-      evidence("L12-E4", "Operations", "Customer impact", "12% errors · 22× SLO burn", "The current policy exhausts the error budget rapidly.", "supporting"),
-      evidence("L12-E5", "Queue", "Worker stop", "Oldest job reaches 26 minutes", "Age shows whether asynchronous work meets its recovery allowance.", "supporting"),
-      evidence("L12-E6", "Delivery", "Fleet deployment", "One release reaches every instance at once", "A bad change shares one fleet-wide failure domain.", "decisive"),
-      evidence("L12-E7", "Cache", "Redis restart", "Database reads surge 6.4× during refill", "A cache failure can shift overload to the source.", "supporting"),
-      evidence("L12-E8", "Correctness", "Order outcome", "Orders remain durable; customers receive ambiguous timeouts", "Durability is intact but response policy causes unsafe retries.", "decisive"),
-      evidence("L12-E9", "Infrastructure", "Zone recovery", "50% app capacity lost · manual writer failover 4m20s", "Zone placement and recovery miss the two-minute critical-journey target.", "decisive"),
+      evidence("L12-E1", "Dependencies", "Timeout policy", "Shared 30-second timeout on every dependency", "A timeout budget can be compared with the caller deadline and dependency criticality.", "decisive", 1),
+      evidence("L12-E2", "Dependencies", "Retry policy", "Immediate, unbounded retries in two clients", "Attempt counts show whether retries multiply the original load.", "decisive", 2),
+      evidence("L12-E3", "Capacity", "Shared pools", "Checkout, workers, and dependencies share pools", "Pool ownership determines which workloads can consume the same concurrency.", "decisive", 2),
+      evidence("L12-E4", "Operations", "Customer impact", "12% errors · 22× SLO burn", "Burn rate compares current failures with the allowed error budget.", "supporting", 2),
+      evidence("L12-E5", "Queue", "Worker stop", "Oldest job reaches 26 minutes", "Oldest age shows how long asynchronous work has waited.", "supporting", 2),
+      evidence("L12-E6", "Delivery", "Fleet deployment", "One release reaches every instance at once", "Rollout shape determines how much capacity receives the same change simultaneously.", "decisive", 3),
+      evidence("L12-E7", "Cache", "Redis restart", "Database reads surge 6.4× during refill", "Refill load measures how cache loss transfers work to the source.", "supporting", 1),
+      evidence("L12-E8", "Correctness", "Order outcome", "Orders remain durable; customers receive ambiguous timeouts", "Durability and response certainty are separate properties.", "decisive", 1),
+      evidence("L12-E9", "Infrastructure", "Zone recovery", "50% app capacity lost · manual writer failover 4m20s", "Recovery time can be compared with the two-minute critical-journey target.", "decisive", 3),
     ],
     hypotheses: [
       { id: "L12-H1", label: "Amplification plus shared failure domains", score: 25 }, { id: "L12-H2", label: "Raw capacity", score: 5 },

@@ -50,6 +50,7 @@ Business invariants such as “no overselling” remain visible when correctness
 16. Threshold status is computed from the stated SLO or capacity limit, not stored as an unrelated label.
 17. Every error card names the journey, included failure types, denominator, and rolling window.
 18. Every metric is authored as `core`, `evidence`, or `advanced`; the initial shared-screen view shows only three or four core signals.
+19. Every displayed value is typed as an `SLO`, `capacity limit`, `invariant`, `diagnostic observation`, or `unavailable`. Only the first three receive Healthy/At risk/Breached labels; observations say `Observed`, and values for components that do not yet exist say `N/A` rather than zero.
 
 ## 4. Always-visible workshop targets
 
@@ -80,9 +81,9 @@ This table specifies the Incident state and canonical recommended outcome. Befor
 | 5 | Dynamic traffic reaches 1,000 RPS | App CPU 96%; request queue wait 680 ms; catalogue p95 1,210 ms; DB CPU 41%; errors 3.8% | Three instances at 45% average CPU; queue wait under 40 ms; catalogue p95 220 ms; errors 0.4% |
 | 6 | Global traffic and image bandwidth | Far-region TTFB 1,400 ms; image share 78%; origin egress 1.2 Gbit/s; origin 850 RPS | Far-region TTFB 240 ms; eligible-request cache hit ratio 91%; total origin RPS reduced 79% to 180; origin egress 140 Mbit/s |
 | 7 | Read and reporting pressure on primary | Primary CPU 91%; read IOPS 88% of capacity; checkout p95 860 ms; read share 82% | Primary CPU 52%; 72% of all reads routed away; checkout p95 540 ms; replica lag 0.8 s |
-| 8 | Years of analytics queries | Report duration 210 s; 180 GB scanned/report; replica lag 95 s; dashboard freshness requirement 5 min | Report duration 8 s; OLTP replica lag 0.9 s; analytics freshness 3 min; checkout p95 480 ms |
+| 8 | Years of analytics queries | Report duration 210 s; 180 GB scanned/report; replica lag 95 s; checkout p95 860 ms; dashboard freshness requirement 5 min | Report duration 8 s; OLTP replica lag 0.9 s; analytics freshness 3 min; checkout p95 480 ms |
 | 9 | Catalogue 8,000 RPS, checkout 30/s | Catalogue owns 88% of app CPU; catalogue p95 410 ms; checkout p95 620 ms; 24 shared instances | Catalogue and checkout scale separately; catalogue p95 180 ms; checkout p95 460 ms; checkout uses 3 instances |
-| 10 | 20,000 simultaneous attempts for 500 units | 20,000 attempts; useful completion 437 reservations; lock-wait p95 2,800 ms; retries 18%; duplicates 2.1%; oversold units 63 | 20,000 attempts; exactly 500 reservations accepted; explicit rejected/queued outcomes for excess demand; oversold 0; duplicates 0; checkout outcome p95 720 ms |
+| 10 | 20,000 attempts in 60 seconds for 500 units | 20,000 attempts; 563 orders accepted for 500 units; 437 unambiguous valid outcomes; lock-wait p95 2,800 ms; retries 18%; duplicates 2.1%; oversold units 63 | 20,000 attempts; exactly 500 reservations accepted; 500 unambiguous valid outcomes; explicit rejected/queued outcomes for excess demand; oversold 0; duplicates 0; checkout outcome p95 720 ms |
 | 11 | 4.2 TB order store and write ceiling | Indexes 1.6 TB; write IOPS 92%; checkout p95 1,200 ms; backup 11 h; maintenance 7 h | Hot set 650 GB; indexes 340 GB; write IOPS 68%; checkout p95 650 ms; hot backup 2.1 h; hot restore 3.4 h; maintenance 1.5 h |
 | 12 | Dependency and zone failures | Offered checkout 30/s; useful completion 26.4/s; checkout errors 12%; dependency timeouts 30 s; SLO burn 22×; queue oldest age 26 min | Offered checkout 30/s; useful completion 29.8/s; checkout errors 0.7%; checkout p95 690 ms; confirmed order loss 0; queue recovers within 12 min |
 
@@ -206,7 +207,7 @@ The detailed lists above define available evidence. The initial shared-screen ro
 
 | Level | Core signals shown first | Evidence signals | Advanced signals |
 |---:|---|---|---|
-| 1 | Offered RPS; catalogue p95; checkout p95; error rate | Trace coverage; SLO state | p50/p99 by route; alert test |
+| 1 | Offered RPS; catalogue p95; checkout p95; error rate | Trace coverage; SLO state; sustainable RPS | p50/p99 by route; first-breach resource; alert test |
 | 2 | Catalogue p95; queries/request; DB CPU; connection wait | Database time; rows examined/returned | Query-plan details; write-index cost |
 | 3 | Catalogue p95; DB reads/s; DB CPU; repeated-key share | Update frequency; miss behavior | Refill concurrency; eviction/stampede count |
 | 4 | Checkout p95; checkout error rate; email p95; duplicate effects | Stage trace; queue age | Retry/dead-letter detail |
@@ -214,10 +215,10 @@ The detailed lists above define available evidence. The initial shared-screen ro
 | 6 | Far-region TTFB; image byte share; origin RPS; origin egress | Edge hit/miss latency | Cache-key cardinality; geographic breakdown |
 | 7 | Checkout p95; primary CPU; read IOPS; write IOPS | Eligible-read share; replica lag | Max lag; read-your-own-write failures |
 | 8 | Report duration; bytes scanned; replica lag; analytics freshness | OLTP I/O during report; reconciliation | Backfill and schema-version state |
-| 9 | Catalogue p95; checkout p95; CPU share by workload; instance allocation | deployment impact; release frequency | synchronous-call and pool detail |
-| 10 | Offered attempts; accepted reservations; oversold units; duplicates | lock wait; retry rate | expiry and idempotency-key detail |
-| 11 | Hot-set size; write IOPS; checkout p95; hot-backup time | index size; maintenance time | pruning ratio; restore drill; optional shard skew |
-| 12 | Offered checkout; useful completion; checkout errors; SLO burn | queue age; retry amplification; dependency state | circuit state; recovery timeline |
+| 9 | Catalogue p95; checkout errors during catalogue deployment; fleet CPU saturation; checkout p95 | deployment topology; release frequency | synchronous-call, connection-pool, and cost allocation detail |
+| 10 | Offered attempts; accepted orders; unambiguous valid outcomes; checkout outcome p95 | oversold units; duplicates; lock wait; retry rate | expiry and idempotency-key detail |
+| 11 | Primary operational dataset; write IOPS; checkout p95; hot-backup time | index size; maintenance and restore time | pruning ratio; full-restore drill; optional shard skew |
+| 12 | Offered checkout; useful completion; checkout errors; SLO burn | checkout p95; queue age; retry amplification; dependency state | circuit state; recovery timeline |
 
 ### 6.2 Decision-driving thresholds
 

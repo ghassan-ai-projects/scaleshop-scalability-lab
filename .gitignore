@@ -218,6 +218,10 @@ __marimo__/
 .streamlit/secrets.toml
 
 # ScaleShop web application
+!lib/
+!lib/**
+!build/
+!build/**
 node_modules/
 .next/
 .vinext/
