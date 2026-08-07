@@ -1,4 +1,82 @@
-import type { EvidenceRole, EvidenceSpec, LevelSpec, MetricSpec, OptionSpec, OutcomeKind } from "@/lib/workshop";
+import type { EvidenceRole, EvidenceSpec, LevelSpec, MetricPresetCenters, MetricProvenance, MetricSourceClass, MetricSpec, OptionSpec, OutcomeKind } from "@/lib/workshop";
+
+const roundCenter = (value: number) => Math.round(value * 10) / 10;
+
+function presetCenters(id: string, value: number | null, threshold: number | undefined, direction: MetricSpec["direction"], kind: MetricSpec["kind"]): MetricPresetCenters {
+  if (value === null) return { normal: null, campaign: null, peak: null, incident: null };
+  if (new Set(["hotShare", "imageShare", "hotSet", "indexes", "offeredCheckout", "hitRatio", "pruning"]).has(id)) {
+    return { normal: value, campaign: value, peak: value, incident: value };
+  }
+  if ((id === "offeredRps" && value === 2) || (id === "catalogueP95" && value === 180) || (id === "checkoutP95" && value === 420) || (id === "errors" && value === 0.1) || (id === "appCpu" && value === 18) || (id === "dbCpu" && value === 12) || id === "traceCoverage") {
+    return { normal: value, campaign: value, peak: value, incident: value };
+  }
+  if (kind === "invariant" || direction === "zero" || direction === "equal") {
+    const healthy = direction === "equal" ? threshold ?? value : 0;
+    return { normal: healthy, campaign: healthy, peak: healthy, incident: value };
+  }
+  if (kind === "observation" || threshold === undefined) {
+    return { normal: roundCenter(value * 0.35), campaign: roundCenter(value * 0.65), peak: roundCenter(value * 0.85), incident: value };
+  }
+  if (direction === "higher") {
+    return {
+      normal: roundCenter(Math.max(value, threshold * 1.1)),
+      campaign: roundCenter(Math.max(value, threshold * 1.03)),
+      peak: roundCenter(Math.max(value, threshold * 0.95)),
+      incident: value,
+    };
+  }
+  return {
+    normal: roundCenter(Math.min(value, threshold * 0.65)),
+    campaign: roundCenter(Math.min(value, threshold * 0.82)),
+    peak: roundCenter(Math.min(value, threshold * 1.05)),
+    incident: value,
+  };
+}
+
+function metricProvenance(id: string, kind: MetricSpec["kind"]): MetricProvenance {
+  const loadTests = new Set(["sustainableRps"]);
+  const analysis = new Set(["hotShare", "imageShare", "pruning", "reconcile"]);
+  const runtime = new Set(["queries", "poolWait", "queueWait", "lockWait", "retries", "amplification", "dbReads"]);
+  const provider: Record<string, string> = {
+    appCpu: "AWS/EC2 CPUUtilization or GCP compute CPU utilization",
+    dbCpu: "AWS/RDS CPUUtilization or GCP database CPU utilization",
+    primaryCpu: "AWS/RDS CPUUtilization",
+    catalogueCpu: "Compute/container CPU utilization",
+    connections: "AWS/RDS DatabaseConnections",
+    dbConnections: "AWS/RDS DatabaseConnections",
+    readIops: "AWS/RDS ReadIOPS",
+    writeIops: "AWS/RDS WriteIOPS",
+    replicaLag: "AWS/RDS ReplicaLag",
+    queueAge: "AWS/SQS ApproximateAgeOfOldestMessage",
+    edgeHit: "AWS/CloudFront CacheHitRate",
+  };
+  let sourceClass: MetricSourceClass = "observability-derived";
+  if (kind === "invariant") sourceClass = "business-invariant";
+  else if (loadTests.has(id)) sourceClass = "load-test";
+  else if (analysis.has(id)) sourceClass = "analysis";
+  else if (runtime.has(id)) sourceClass = "runtime";
+  else if (provider[id]) sourceClass = "provider";
+  return { sourceClass, comparableTo: provider[id] };
+}
+
+function metricDefinition(label: string, unit: string, window: string, denominator?: string) {
+  const basis = denominator ?? window;
+  const lower = label.toLowerCase();
+  let meaning = `${label} measured in ${unit || "count"}`;
+  if (lower.includes("p95")) meaning = `Tail latency: 95% of the named operations finish at or below this duration`;
+  else if (lower.includes("error")) meaning = `Failed, timed-out, rejected, or invalid outcomes divided by offered work`;
+  else if (lower.includes("cpu")) meaning = `Share of available processor capacity currently consumed`;
+  else if (lower.includes("iops")) meaning = `Storage input/output operations per second as a share of the scenario capacity`;
+  else if (lower.includes("hit ratio") || lower.includes("edge hits")) meaning = `Eligible reads served without reaching the source of truth`;
+  else if (lower.includes("replica lag")) meaning = `Delay between a primary commit and visibility on the replica`;
+  else if (lower.includes("oldest") && (lower.includes("job") || lower.includes("queue"))) meaning = `Time the oldest unprocessed item has waited`;
+  else if (lower.includes("burn rate")) meaning = `Speed at which the service consumes its allowed error budget`;
+  else if (lower.includes("amplification")) meaning = `Total downstream attempts divided by original offered requests`;
+  else if (lower.includes("offered")) meaning = `Work arriving before rejection, timeout, shedding, or failure`;
+  else if (lower.includes("completed") || lower.includes("useful")) meaning = `Successful, non-duplicate work that produced an unambiguous useful result`;
+  else if (lower.includes("duplicate") || lower.includes("oversold") || lower.includes("loss") || lower.includes("reconciliation")) meaning = `Business-correctness invariant counted from authoritative domain records`;
+  return `${meaning}, evaluated for ${basis}. The scenario contract, not a universal vendor default, determines status.`;
+}
 
 const metric = (
   id: string,
@@ -12,7 +90,12 @@ const metric = (
   kind: MetricSpec["kind"] = threshold === undefined ? "observation" : "slo",
   window = "60-second window",
   denominator?: string,
-): MetricSpec => ({ id, label, value, after, unit, threshold, direction, precision, kind, window, denominator });
+): MetricSpec => ({
+  id, label, value, after, unit, threshold, direction, precision, kind, window, denominator,
+  definition: metricDefinition(label, unit, window, denominator),
+  provenance: metricProvenance(id, kind),
+  presets: presetCenters(id, value, threshold, direction, kind),
+});
 
 const evidence = (
   id: string,
@@ -25,7 +108,66 @@ const evidence = (
 ): EvidenceSpec => ({ id, category, title, value, meaning, role, wave });
 
 const leadTime = (points: number) =>
-  points <= 2 ? "Up to 2 days" : points <= 4 ? "3–5 days" : points <= 7 ? "1–2 weeks" : "2–4 weeks";
+  points <= 2 ? "Up to 2 days" : points <= 4 ? "3–5 days" : points <= 7 ? "1–2 weeks" : points <= 10 ? "2–4 weeks" : "More than one month";
+
+const areaFit = (kind: OutcomeKind) => ({
+  best: "Right layer and timing: it addresses the demonstrated constraint with the smallest sufficient mechanism.",
+  costly: "Right capability or sufficient capacity, but broader, costlier, or earlier than the evidence justifies.",
+  partial: "It changes a real symptom or adjacent layer, but leaves at least one decisive constraint unresolved.",
+  wrong: "Wrong layer: the decisive evidence shows that this area is not the demonstrated constraint.",
+  invariant: "It improves a surface signal by violating an explicit correctness, privacy, or safety constraint.",
+})[kind];
+
+const fitBoundary = (kind: OutcomeKind) => ({
+  best: "Reconsider when the verification evidence no longer meets the stated SLO or invariant.",
+  costly: "Use this when measured growth, recovery, residency, or write pressure exceeds the smaller option's verified envelope.",
+  partial: "Use only as containment when the remaining constraint is separately controlled and measured.",
+  wrong: "Reconsider only when new evidence demonstrates saturation or failure in this area.",
+  invariant: "Do not use while the stated invariant remains mandatory.",
+})[kind];
+
+const OPTION_OUTCOME_MODELS: Record<string, { affectedMetricIds: string[]; progress: number }> = {
+  "L1-O3": { affectedMetricIds: ["dbCpu"], progress: 0.35 },
+  "L1-O4": { affectedMetricIds: ["traceCoverage"], progress: 0.75 },
+  "L1-O5": { affectedMetricIds: ["dbCpu"], progress: 0.25 },
+  "L2-O3": { affectedMetricIds: ["catalogueP95", "queries", "dbCpu", "poolWait"], progress: 0.45 },
+  "L2-O4": { affectedMetricIds: ["catalogueP95", "dbCpu", "connections", "poolWait"], progress: 0.78 },
+  "L3-O1": { affectedMetricIds: ["catalogueP95", "dbCpu"], progress: 0.82 },
+  "L3-O3": { affectedMetricIds: ["catalogueP95", "dbReads", "dbCpu"], progress: 0.48 },
+  "L3-O4": { affectedMetricIds: ["catalogueP95", "dbReads", "dbCpu", "hitRatio"], progress: 0.9 },
+  "L3-O5": { affectedMetricIds: ["catalogueP95", "dbCpu"], progress: 0.72 },
+  "L4-O1": { affectedMetricIds: ["checkoutP95", "errors", "dbCpu"], progress: 0.35 },
+  "L4-O3": { affectedMetricIds: ["errors"], progress: 0.35 },
+  "L4-O4": { affectedMetricIds: ["checkoutP95", "errors", "duplicates", "queueAge"], progress: 0.8 },
+  "L4-O5": { affectedMetricIds: ["checkoutP95", "errors", "queueAge"], progress: 0.72 },
+  "L5-O1": { affectedMetricIds: ["catalogueP95", "appCpu", "queueWait", "errors"], progress: 0.82 },
+  "L5-O3": { affectedMetricIds: ["catalogueP95", "appCpu", "queueWait", "errors", "instances", "loadSkew"], progress: 0.68 },
+  "L5-O4": { affectedMetricIds: ["catalogueP95", "appCpu"], progress: 0.3 },
+  "L5-O5": { affectedMetricIds: [], progress: 0 },
+  "L6-O2": { affectedMetricIds: ["farTtfb", "imageLoad"], progress: 0.82 },
+  "L6-O3": { affectedMetricIds: ["imageLoad", "egress", "appCpu"], progress: 0.5 },
+  "L6-O4": { affectedMetricIds: ["originRps", "appCpu"], progress: 0.45 },
+  "L6-O5": { affectedMetricIds: ["farTtfb", "originRps", "egress", "edgeHit"], progress: 0.88 },
+  "L7-O2": { affectedMetricIds: ["checkoutP95", "primaryCpu", "readIops", "writeIops"], progress: 0.86 },
+  "L7-O3": { affectedMetricIds: ["checkoutP95", "primaryCpu", "readIops"], progress: 0.4 },
+  "L7-O4": { affectedMetricIds: ["checkoutP95", "primaryCpu", "readIops"], progress: 0.78 },
+  "L7-O5": { affectedMetricIds: ["checkoutP95", "primaryCpu"], progress: 0.25 },
+  "L8-O1": { affectedMetricIds: ["replicaLag", "checkoutP95"], progress: 0.6 },
+  "L8-O2": { affectedMetricIds: [], progress: 0 },
+  "L8-O3": { affectedMetricIds: ["reportDuration", "bytesScanned", "checkoutP95"], progress: 0.52 },
+  "L8-O5": { affectedMetricIds: ["reportDuration", "bytesScanned", "freshness", "checkoutP95"], progress: 0.72 },
+  "L9-O2": { affectedMetricIds: ["catalogueP95", "deployErrors", "catalogueCpu", "checkoutP95", "sharedInstances"], progress: 0.95 },
+  "L9-O3": { affectedMetricIds: ["catalogueP95", "catalogueCpu", "checkoutP95", "sharedInstances"], progress: 0.82 },
+  "L9-O4": { affectedMetricIds: [], progress: 0 },
+  "L9-O5": { affectedMetricIds: ["catalogueP95", "catalogueCpu"], progress: 0.45 },
+  "L10-O1": { affectedMetricIds: ["accepted", "useful", "checkoutP95", "lockWait", "oversold"], progress: 0.55 },
+  "L10-O2": { affectedMetricIds: ["accepted", "useful", "duplicates", "oversold", "retries"], progress: 0.65 },
+  "L10-O5": { affectedMetricIds: ["useful", "checkoutP95", "lockWait"], progress: 0.8 },
+  "L11-O1": { affectedMetricIds: ["writeIops", "checkoutP95", "backup", "restore", "maintenance"], progress: 0.75 },
+  "L11-O3": { affectedMetricIds: ["writeIops", "checkoutP95"], progress: 0.8 },
+  "L11-O4": { affectedMetricIds: ["writeIops", "checkoutP95", "backup", "restore", "maintenance"], progress: 0.82 },
+  "L11-O5": { affectedMetricIds: ["writeIops", "checkoutP95"], progress: 0.78 },
+};
 
 const option = (
   id: string,
@@ -39,20 +181,16 @@ const option = (
   risk: string,
   metricEffects?: Record<string, number | null>,
   coverage?: string[],
-): OptionSpec => ({
-  id,
-  title,
-  mechanism,
-  monthlyCost,
-  points,
-  leadTime: leadTime(points),
-  reversibility,
-  kind,
-  summary,
-  risk,
-  metricEffects,
-  coverage,
-});
+): OptionSpec => {
+  const outcomeModel = metricEffects
+    ? { affectedMetricIds: Object.keys(metricEffects), progress: 1 }
+    : OPTION_OUTCOME_MODELS[id] ?? (id.startsWith("L12-") ? { affectedMetricIds: [], progress: 0 } : undefined);
+  if (!outcomeModel) throw new Error(`Missing outcome model for ${id}`);
+  return {
+    id, title, mechanism, monthlyCost, points, leadTime: leadTime(points), reversibility, kind, summary, risk,
+    metricEffects, coverage, areaFit: areaFit(kind), fitBoundary: fitBoundary(kind), outcomeModel,
+  };
+};
 
 const earlyLevels: LevelSpec[] = [
   {
@@ -89,9 +227,9 @@ const earlyLevels: LevelSpec[] = [
     options: [
       option("L1-O1", "Define and measure", "Set journey SLOs, instrument RED/USE and traces, then run a representative stepped load test.", 120, 4, "Easy", "best", "Creates a reproducible envelope: 28 RPS sustained; catalogue p95 first breaches at 31 RPS.", "Telemetry noise, high-cardinality cost, and false confidence in one workload mix.", { offeredRps: 31, traceCoverage: 98, sustainableRps: 28, appCpu: 78, dbCpu: 84 }),
       option("L1-O2", "Run a short load test", "Step to 50 RPS for five minutes and record aggregate latency.", 0, 2, "Easy", "partial", "Produces an initial observation but not a representative operating boundary.", "Aggregate latency and a short run can hide tail behavior, workload mix, and saturation over time.", { offeredRps: 50 }),
-      option("L1-O3", "Upgrade PostgreSQL", "Buy a larger database tier before traffic grows.", 700, 1, "Easy", "costly", "Adds unused headroom without improving knowledge.", "Recurring spend and no evidence that the database limits current service."),
+      option("L1-O3", "Upgrade PostgreSQL", "Buy a larger database tier before traffic grows.", 700, 1, "Easy", "wrong", "Adds unused headroom without improving knowledge.", "Recurring spend and no evidence that the database limits current service.", { dbCpu: 6 }),
       option("L1-O4", "Adopt default APM", "Buy an APM tool and keep its default dashboards and alerts.", 250, 2, "Easy", "partial", "Adds telemetry but no explicit operating contract.", "Noise and alerts that are disconnected from customer journeys."),
-      option("L1-O5", "Add Redis", "Put a cache in front of the healthy database.", 180, 4, "Moderate", "partial", "May reduce reads later but does not answer the incident.", "Invalidation complexity before a repeated-read bottleneck exists."),
+      option("L1-O5", "Add Redis", "Put a cache in front of the healthy database.", 180, 4, "Moderate", "wrong", "May reduce reads later but does not answer the incident.", "Invalidation complexity before a repeated-read bottleneck exists.", { dbCpu: 8 }),
     ],
     canonicalOptionIds: ["L1-O1"], canonicalCost: 120, canonicalPoints: 4,
     official: {
@@ -266,7 +404,7 @@ const earlyLevels: LevelSpec[] = [
       option("L5-O2", "Build a stateless fleet", "Add a load balancer, external sessions/files, health checks, and graceful drain.", 600, 4, "Moderate", "best", "Makes instances disposable so capacity and failure handling scale together.", "Load balancing, shared-state dependencies, and multiplied DB pools.", { catalogueP95: 220, appCpu: 45, queueWait: 35, errors: 0.4, instances: 3, loadSkew: 6, dbConnections: 54 }),
       option("L5-O3", "Use sticky sessions", "Add instances but keep session affinity and local uploads.", 600, 2, "Easy", "partial", "Adds throughput while retaining failure and deployment fragility.", "Lost sessions/files on failure and uneven load."),
       option("L5-O4", "Add a CDN", "Offload static assets at the edge.", 180, 3, "Moderate", "partial", "Reduces static work but the measured saturation is dynamic compute.", "New cache policy with little relief for the incident."),
-      option("L5-O5", "Scale PostgreSQL", "Upgrade the database tier.", 800, 1, "Easy", "partial", "Changes a resource with substantial headroom.", "Recurring cost and no improvement to app queueing."),
+      option("L5-O5", "Scale PostgreSQL", "Upgrade the database tier.", 800, 1, "Easy", "wrong", "Changes a resource with substantial headroom.", "Recurring cost and no improvement to app queueing."),
     ],
     canonicalOptionIds: ["L5-O2"], canonicalCost: 600, canonicalPoints: 4,
     official: {
@@ -390,7 +528,7 @@ const lateLevels: LevelSpec[] = [
     ],
     options: [
       option("L8-O1", "Add a report replica", "Dedicate another PostgreSQL replica to dashboards.", 550, 3, "Moderate", "partial", "Isolates some load but retains heavy scans and OLTP schema.", "Recurring cost and lag under refresh."),
-      option("L8-O2", "Split the service", "Deploy analytics code separately on the same replica.", 400, 5, "Moderate", "partial", "Separates code, not storage pressure.", "Cosmetic isolation and another deployment."),
+      option("L8-O2", "Split the service", "Deploy analytics code separately on the same replica.", 400, 5, "Moderate", "wrong", "Separates code, not storage pressure.", "Cosmetic isolation and another deployment."),
       option("L8-O3", "Index every report", "Add reporting indexes to the transactional schema.", 0, 5, "Moderate", "partial", "Speeds known reports at the cost of writes and future flexibility.", "Write amplification and schema rigidity."),
       option("L8-O4", "Build an analytical path", "Stream or batch records into a reporting-oriented store with reconciliation.", 800, 6, "Hard", "best", "Matches the query model and accepted freshness while isolating checkout.", "Pipeline lag, ordering, schema evolution, backfills, and reconciliation.", { reportDuration: 8, bytesScanned: 12, replicaLag: 0.9, freshness: 3, checkoutP95: 480, reconcile: 0 }),
       option("L8-O5", "Use materialized views", "Refresh a fixed set of views every five minutes.", 100, 4, "Moderate", "partial", "A viable smaller solution for fixed reports, but refresh scans and schema rigidity limit growth.", "Refresh spikes and limited exploratory dimensions."),
@@ -434,7 +572,7 @@ const lateLevels: LevelSpec[] = [
       option("L9-O1", "Extract catalogue capability", "Create one independently deployable catalogue boundary with explicit contracts and data ownership.", 500, 7, "Hard", "best", "Separates scaling, releases, data responsibility, and blast radius without over-decomposition.", "Network failure, contracts, data duplication, versioning, and tracing.", { catalogueP95: 180, deployErrors: 0.4, checkoutP95: 460, catalogueCpu: 62, sharedInstances: 0, catalogueInstances: 18, checkoutInstances: 3 }),
       option("L9-O2", "Split every domain", "Create services for products, categories, carts, orders, inventory, invoices, and users.", 1800, 12, "Hard", "costly", "Creates many boundaries without measured need.", "Coordination, network calls, operational overhead, and distributed transactions."),
       option("L9-O3", "Grow the monolith", "Increase the shared fleet from 24 to 40 instances.", 1000, 2, "Easy", "costly", "Restores capacity but preserves overprovisioning and blast radius.", "Recurring cost and shared deployments."),
-      option("L9-O4", "Split the frontend", "Deploy the catalogue frontend independently.", 150, 3, "Moderate", "partial", "Improves UI releases while backend compute and failure remain shared.", "A cosmetic boundary with little capacity isolation."),
+      option("L9-O4", "Split the frontend", "Deploy the catalogue frontend independently.", 150, 3, "Moderate", "wrong", "Improves UI releases while backend compute and failure remain shared.", "A cosmetic boundary with little capacity isolation."),
       option("L9-O5", "Add cache and replicas", "Add more data capacity inside the shared monolith.", 300, 4, "Moderate", "partial", "Reduces some data pressure but not compute, release, or failure coupling.", "More infrastructure inside the same blast radius."),
     ],
     canonicalOptionIds: ["L9-O1"], canonicalCost: 500, canonicalPoints: 7,
