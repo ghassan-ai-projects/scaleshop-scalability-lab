@@ -18,7 +18,7 @@ const nodes: Node[] = [
   { id: "objects", label: "Object storage", meta: "Uploads + assets", lane: "data", added: 5, kind: "object" },
   { id: "analytics", label: "Analytics store", meta: "≤ 5 min freshness", lane: "analytics", added: 8, kind: "database" },
   { id: "external", label: "External services", meta: "Payment · email · warehouse", lane: "external", added: 0, kind: "external" },
-  { id: "observability", label: "Metrics + traces", meta: "SLO observation", lane: "ops", added: 1, kind: "ops" },
+  { id: "observability", label: "Observability / APM", meta: "Journey SLOs + traces", lane: "ops", added: 1, kind: "ops" },
   { id: "delivery", label: "Canary + rollback", meta: "Health-gated", lane: "ops", added: 12, kind: "ops" },
 ];
 
@@ -35,6 +35,17 @@ export function ArchitectureMap({ stage, level, evolved }: { stage: number; leve
   });
 
   const delta = visible.filter((node) => node.added === stage && evolved);
+  const flowIds = stage >= 9
+    ? ["users", ...(stage >= 6 ? ["edge"] : []), "catalogue", ...(stage >= 3 ? ["cache"] : []), "db", "checkout", ...(stage >= 4 ? ["queue", "workers"] : []), "external"]
+    : ["users", ...(stage >= 6 ? ["edge"] : []), ...(stage >= 5 ? ["lb"] : []), "app", "db", ...(stage >= 4 ? ["queue", "workers"] : []), "external"];
+  const flowNodes = flowIds.map((id) => visible.find((node) => node.id === id)).filter(Boolean) as Node[];
+  const policyDeltas: Record<number, string> = {
+    1: "Journey SLOs, RED/USE telemetry, alert ownership, and distributed tracing become the operating contract.",
+    2: "The catalogue request path performs bounded query work with reviewed plans and pool headroom.",
+    10: "Inventory reservations and idempotency are enforced atomically at the PostgreSQL ownership boundary.",
+    11: "Orders are time-partitioned; cold history is archived while the primary retains the operational hot set.",
+    12: "Timeout budgets, bulkheads, backpressure, multi-zone recovery, canary delivery, and rollback overlay the existing paths.",
+  };
   const flow = stage >= 9
     ? "Customers → edge/routing → catalogue or checkout. Catalogue reads cache then source. Checkout writes PostgreSQL and outbox; workers call external services."
     : `Customers → ${stage >= 6 ? "edge → " : ""}${stage >= 5 ? "load balancer → " : ""}web application → PostgreSQL and external services.`;
@@ -70,12 +81,17 @@ export function ArchitectureMap({ stage, level, evolved }: { stage: number; leve
         })}
       </div>
 
+      <div className="architecture-flow" aria-label="Focused request path">
+        <span>Focused path</span>
+        {flowNodes.map((node, index) => <div key={node.id}>{index > 0 && <i aria-hidden="true">→</i>}<strong>{node.label}</strong><small>{index === 0 ? "request" : node.id === "db" ? "read / write" : node.id === "queue" ? "durable handoff" : "call"}</small></div>)}
+      </div>
+
       <details className="architecture-outline">
         <summary>Architecture text alternative</summary>
         <p><strong>Current flow:</strong> {flow}</p>
         <p><strong>Source of truth:</strong> PostgreSQL owns orders and inventory. Cache and analytics data are derived.</p>
         <p><strong>Current incident path:</strong> {level.question}</p>
-        {evolved && <p><strong>Delta:</strong> {delta.length ? delta.map((item) => item.label).join(", ") : "Configuration and policy changed without a new topology node."}</p>}
+        {evolved && <p><strong>Delta:</strong> {delta.length ? delta.map((item) => item.label).join(", ") : policyDeltas[level.id] ?? "Configuration and policy changed without a new topology node."}</p>}
       </details>
     </section>
   );
