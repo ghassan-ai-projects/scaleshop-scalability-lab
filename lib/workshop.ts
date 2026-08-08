@@ -28,6 +28,29 @@ export interface MetricSpec {
   definition: string;
   provenance: MetricProvenance;
   presets: MetricPresetCenters;
+  /** Hard physical bound. A ratio of downstream attempts to requests cannot fall below 1. */
+  floor?: number;
+  /** Structural or per-request quantities do not move with the traffic preset. */
+  presetsFlat?: boolean;
+  /** Breached at every preset by design: the condition is not caused by traffic. */
+  standingBreach?: boolean;
+  /** The component does not exist yet at this level, so the value is unavailable rather than zero. */
+  absentComponent?: boolean;
+}
+
+/**
+ * Relationships the level data must honour. The formula that generates preset centers works on
+ * one metric at a time and cannot see these, so they are declared here and enforced by the
+ * content-validation gate rather than trusted.
+ */
+export type MetricRelationship =
+  | { kind: "conservation"; offered: string; completed: string }
+  | { kind: "successRate"; offered: string; errors: string; completed: string }
+  | { kind: "burnRate"; errors: string; burn: string };
+
+export interface TraceStage {
+  label: string;
+  duration: number;
 }
 
 export interface EvidenceSpec {
@@ -38,6 +61,8 @@ export interface EvidenceSpec {
   meaning: string;
   role: EvidenceRole;
   wave?: 1 | 2 | 3;
+  /** Stage durations rendered as a breakdown bar when the evidence is a trace. */
+  stages?: TraceStage[];
 }
 
 export interface OptionSpec {
@@ -51,14 +76,16 @@ export interface OptionSpec {
   kind: OutcomeKind;
   summary: string;
   risk: string;
+  /**
+   * The authored consequence of choosing this option. Every standard option declares one.
+   * Metrics absent from the record keep their incident value; there is no interpolation
+   * toward another option's result, because blending toward a mechanism the participant
+   * did not choose has no physical meaning.
+   */
   metricEffects?: Record<string, number | null>;
   coverage?: string[];
   areaFit: string;
   fitBoundary: string;
-  outcomeModel: {
-    affectedMetricIds: string[];
-    progress: number;
-  };
 }
 
 export interface HypothesisSpec {
@@ -76,6 +103,16 @@ export interface LevelSpec {
   question: string;
   constraints: string[];
   metrics: MetricSpec[];
+  /**
+   * The authored shared-screen row. Previously this was `metrics.slice(0, 4)`, which left
+   * Level 1's debrief showing four healthy cards while the finding that sets up Level 2 —
+   * the database saturating at the 31-RPS boundary — sat behind a disclosure button.
+   */
+  coreMetricIds: string[];
+  /** The debrief may promote a different set once the consequence is known. */
+  coreMetricIdsAfter?: string[];
+  /** Levels with no instrumentation to vary say so instead of rendering an inert control. */
+  presetsUnavailable?: string;
   evidence: EvidenceSpec[];
   hypotheses: HypothesisSpec[];
   options: OptionSpec[];
@@ -92,7 +129,17 @@ export interface LevelSpec {
   };
   hints: [string, string];
   stretch: string;
-  capstone?: { budget: number; maxSelections: number; evidenceRequired: number };
+  capstone?: {
+    budget: number;
+    maxSelections: number;
+    evidenceRequired: number;
+    /** The broader set that also restores every constraint, at the cost of the whole allowance. */
+    alternateOptionIds: string[];
+    /** Metric id → the protection dimensions that must all be covered to reach `after`. */
+    coverageRequirements: Record<string, string[]>;
+    coverageDimensions: string[];
+  };
+  relationships?: MetricRelationship[];
 }
 
 export interface Submission {
@@ -137,32 +184,66 @@ export function formatMetric(value: number | null, metric: MetricSpec): string {
   return metric.unit === "%" ? `${formatted}%` : `${formatted} ${metric.unit}`.trim();
 }
 
+/**
+ * Risk bands are per kind, because resources and objectives fail differently.
+ *
+ * A capacity limit is a limit: crossing it is a breach, and the warning band sits *below* it.
+ * An SLO is a target with a noisy tail, so a margin above it is still recoverable. Using one
+ * flat multiplier for both left Level 7 with a 91% primary against an 80% limit showing only
+ * "at risk" — a level whose entire narrative is an overloaded primary never turned red.
+ */
+const RISK_BANDS: Record<"capacity" | "slo", { lower: number; higher: number }> = {
+  capacity: { lower: 0.9, higher: 1.1 },
+  slo: { lower: 1.2, higher: 0.85 },
+};
+
 export function metricStatus(value: number | null, metric: MetricSpec): MetricStatus {
   if (value === null || metric.kind === "observation") return "observed";
   if (metric.direction === "zero") return value === 0 ? "healthy" : "breached";
   if (metric.direction === "equal") return value === metric.threshold ? "healthy" : "breached";
   if (metric.threshold === undefined) return "healthy";
+  const band = RISK_BANDS[metric.kind === "capacity" ? "capacity" : "slo"];
   if (metric.direction === "higher") {
     if (value >= metric.threshold) return "healthy";
-    if (value >= metric.threshold * 0.85) return "risk";
-    return "breached";
+    return value >= metric.threshold * band.higher ? "risk" : "breached";
+  }
+  if (metric.kind === "capacity") {
+    if (value > metric.threshold) return "breached";
+    return value >= metric.threshold * band.lower ? "risk" : "healthy";
   }
   if (value <= metric.threshold) return "healthy";
-  if (value <= metric.threshold * 1.2) return "risk";
-  return "breached";
+  return value <= metric.threshold * band.lower ? "risk" : "breached";
+}
+
+/**
+ * Proportions for the metric meter: how full the bar is, where the target sits, and where the
+ * incident baseline sat. Every one of the three encodes an authored number. The bars this
+ * replaces were seeded from the level id and a tick counter and never read the metric at all,
+ * so a healthy card and a breached card drew statistically identical charts.
+ */
+export function metricMeter(value: number | null, metric: MetricSpec) {
+  if (value === null || metric.direction === "zero" || metric.direction === "equal") return null;
+  const candidates = [value, metric.threshold, metric.value, metric.after].filter(
+    (item): item is number => typeof item === "number",
+  );
+  const scale = Math.max(...candidates) * 1.15;
+  if (!(scale > 0)) return null;
+  const proportion = (item: number | null | undefined) =>
+    typeof item === "number" ? Math.max(0, Math.min(100, (item / scale) * 100)) : null;
+  return {
+    fill: proportion(value) ?? 0,
+    thresholdAt: proportion(metric.threshold),
+    baselineAt: metric.value === value ? null : proportion(metric.value),
+  };
 }
 
 export function presetValue(metric: MetricSpec, preset: TrafficPreset): number | null {
   return metric.presets[preset];
 }
 
-export function deterministicWave(seed: number, points = 22): number[] {
-  let state = (seed + 1) * 9301 + 49297;
-  return Array.from({ length: points }, (_, index) => {
-    state = (state * 233280 + 17) % 2147483647;
-    const noise = (state / 2147483647 - 0.5) * 18;
-    return Math.max(12, Math.min(94, 46 + Math.sin((index + seed) * 0.62) * 12 + noise));
-  });
+export function coreMetrics(level: LevelSpec, submitted: boolean): MetricSpec[] {
+  const ids = (submitted && level.coreMetricIdsAfter) || level.coreMetricIds;
+  return ids.map((id) => level.metrics.find((item) => item.id === id)).filter(Boolean) as MetricSpec[];
 }
 
 export const REFERENCE_ARCHITECTURE_BUDGET = { monthly: 6000, points: 70 } as const;
@@ -209,9 +290,18 @@ export function outcomeKindForSubmission(level: LevelSpec, submission: Submissio
   if (!level.capstone) return level.options.find((item) => submission.optionIds.includes(item.id))?.kind ?? "partial";
   const selected = new Set(submission.optionIds);
   if (level.canonicalOptionIds.every((id) => selected.has(id))) return "best";
-  if (["L12-A2", "L12-A3", "L12-A4", "L12-A5"].every((id) => selected.has(id))) return "costly";
+  if (level.capstone.alternateOptionIds.every((id) => selected.has(id))) return "costly";
   return "partial";
 }
+
+/**
+ * An answer that breaches a stated invariant is the worst available answer, not a mid-table one.
+ * The previous table gave `wrong` and `invariant` an identical 50/90 and gave `costly` the same
+ * intervention-fit credit as `best`, so over-scaling scored 88% and trading away a correctness
+ * guarantee read as a near-pass. Both contradict the lab's premise.
+ */
+const INTERVENTION_FIT: Record<OutcomeKind, number> = { best: 25, costly: 16, partial: 12, wrong: 4, invariant: -15 };
+const COST_AND_SIMPLICITY: Record<OutcomeKind, number> = { best: 15, costly: 4, partial: 8, wrong: 2, invariant: -10 };
 
 export function scoreBreakdown(level: LevelSpec, submission: Submission) {
   const hypothesis = level.hypotheses.find((item) => item.id === submission.hypothesisId);
@@ -220,18 +310,23 @@ export function scoreBreakdown(level: LevelSpec, submission: Submission) {
     return score + (item?.role === "decisive" ? 12.5 : item?.role === "supporting" ? 6.25 : 0);
   }, 0);
   const kind = outcomeKindForSubmission(level, submission);
-  const interventionFit: Record<OutcomeKind, number> = { best: 25, costly: 25, partial: 12, wrong: 0, invariant: 0 };
-  const costAndSimplicity: Record<OutcomeKind, number> = { best: 15, costly: 4, partial: 8, wrong: 0, invariant: 0 };
   return {
     diagnosis: hypothesis?.score ?? 0,
     evidence: Math.min(25, evidence),
-    interventionFit: interventionFit[kind],
-    costAndSimplicity: costAndSimplicity[kind],
+    interventionFit: INTERVENTION_FIT[kind],
+    costAndSimplicity: COST_AND_SIMPLICITY[kind],
   };
 }
 
 export function scoreSubmission(level: LevelSpec, submission: Submission): number {
-  return Math.round(Object.values(scoreBreakdown(level, submission)).reduce((total, value) => total + value, 0));
+  const total = Object.values(scoreBreakdown(level, submission)).reduce((sum, value) => sum + value, 0);
+  return Math.max(0, Math.round(total));
+}
+
+/** Decisive evidence the team did not cite, so the debrief can name what was left on the desk. */
+export function missedDecisiveEvidence(level: LevelSpec, submission: Submission): EvidenceSpec[] {
+  const cited = new Set(submission.evidenceIds);
+  return level.evidence.filter((item) => item.role === "decisive" && !cited.has(item.id));
 }
 
 export function orderedOptions(level: LevelSpec): OptionSpec[] {
@@ -255,33 +350,56 @@ export function hypothesisRationale(level: LevelSpec, hypothesisId: string): str
   return `The evidence does not support this area. ${level.official.evidence}`;
 }
 
+/** Metrics the option does not author keep their incident value. Nothing is interpolated. */
 export function optionMetricValue(level: LevelSpec, option: OptionSpec, metricId: string): number | null {
   const metric = level.metrics.find((item) => item.id === metricId);
   if (!metric) return null;
-  if (option.metricEffects && Object.prototype.hasOwnProperty.call(option.metricEffects, metricId)) return option.metricEffects[metricId]!;
-  if (!option.outcomeModel.affectedMetricIds.includes(metricId) || metric.value === null || metric.after === null) return metric.value;
-  return Math.round((metric.value + (metric.after - metric.value) * option.outcomeModel.progress) * 10) / 10;
+  const effects = option.metricEffects;
+  if (effects && Object.prototype.hasOwnProperty.call(effects, metricId)) return effects[metricId];
+  return metric.value;
 }
 
-const capstoneMetricCoverage: Record<string, string[]> = {
-  usefulCheckout: ["dependency", "amplification", "resources", "zone"],
-  errors: ["dependency", "amplification", "resources", "zone", "deploy"],
-  burn: ["dependency", "amplification", "resources", "zone", "deploy"],
-  checkoutP95: ["dependency", "resources", "zone", "deploy"],
-  queueAge: ["resources"],
-  amplification: ["dependency", "amplification"],
-  orderLoss: ["zone"],
-};
+export function capstoneCoverage(level: LevelSpec, optionIds: string[]): Set<string> {
+  const covered = new Set<string>();
+  optionIds.forEach((id) =>
+    level.options.find((option) => option.id === id)?.coverage?.forEach((dimension) => covered.add(dimension)),
+  );
+  return covered;
+}
 
+/**
+ * The capstone is the one level where combinations, not single options, produce the outcome, so
+ * its metrics are aggregated from the protection dimensions the selected set covers. A metric
+ * only reaches its remediated value when every dimension it depends on is covered.
+ */
 export function capstoneMetricValue(level: LevelSpec, optionIds: string[], metricId: string): number | null {
   const metric = level.metrics.find((item) => item.id === metricId);
   if (!metric || metric.value === null || metric.after === null) return metric?.value ?? null;
-  const required = capstoneMetricCoverage[metricId];
-  if (!required) return metric.value;
-  const covered = new Set<string>();
-  optionIds.forEach((id) => level.options.find((option) => option.id === id)?.coverage?.forEach((dimension) => covered.add(dimension)));
+
+  // A derived metric is computed from its inputs, never aggregated on its own. Interpolating
+  // useful completion and error rate independently let a partial set report more completions
+  // than its own error rate allows.
+  const round1 = (item: number) => Math.round(item * 10) / 10;
+  for (const rule of level.relationships ?? []) {
+    if (rule.kind === "successRate" && rule.completed === metricId) {
+      const offered = capstoneMetricValue(level, optionIds, rule.offered);
+      const errors = capstoneMetricValue(level, optionIds, rule.errors);
+      if (offered !== null && errors !== null) return round1(offered * (1 - errors / 100));
+    }
+    if (rule.kind === "burnRate" && rule.burn === metricId) {
+      const errors = capstoneMetricValue(level, optionIds, rule.errors);
+      const budget = level.metrics.find((item) => item.id === rule.errors)?.threshold;
+      if (errors !== null && budget) return round1(errors / budget);
+    }
+  }
+
+  const required = level.capstone?.coverageRequirements[metricId];
+  if (!required?.length) return metric.value;
+  const covered = capstoneCoverage(level, optionIds);
   const progress = required.filter((dimension) => covered.has(dimension)).length / required.length;
-  return Math.round((metric.value + (metric.after - metric.value) * progress) * 10) / 10;
+  const raw = metric.value + (metric.after - metric.value) * progress;
+  const rounded = Math.round(raw * 10) / 10;
+  return metric.floor === undefined ? rounded : Math.max(metric.floor, rounded);
 }
 
 export function parseWorkshopState(value: unknown): WorkshopState | null {
@@ -292,6 +410,31 @@ export function parseWorkshopState(value: unknown): WorkshopState | null {
   const record = (item: unknown) => Boolean(item && typeof item === "object" && !Array.isArray(item));
   if (!record(candidate.revealed) || !record(candidate.submissions) || !record(candidate.hints) || typeof candidate.orientationSeen !== "boolean" || typeof candidate.scoring !== "boolean") return null;
   return candidate as WorkshopState;
+}
+
+/**
+ * Migrate a stored payload to the current shape. Version 1 was previously stamped as version 2
+ * without inspection, so any shape difference passed straight into live state. Unknown or
+ * unreadable payloads are discarded rather than coerced.
+ */
+export function migrateWorkshopState(raw: unknown): WorkshopState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as Record<string, unknown>;
+  if (candidate.version === 2) return parseWorkshopState(candidate);
+  if (candidate.version !== undefined && candidate.version !== 1) return null;
+  const record = (item: unknown) => (item && typeof item === "object" && !Array.isArray(item) ? (item as Record<number, unknown>) : {});
+  const bounded = (item: unknown, min: number, max: number, fallback: number) =>
+    Number.isInteger(item) && (item as number) >= min && (item as number) <= max ? (item as number) : fallback;
+  return parseWorkshopState({
+    version: 2,
+    level: bounded(candidate.level, 1, 12, 1),
+    adoptedThrough: bounded(candidate.adoptedThrough, 0, 12, 0),
+    revealed: record(candidate.revealed),
+    submissions: record(candidate.submissions),
+    hints: record(candidate.hints),
+    orientationSeen: candidate.orientationSeen === true,
+    scoring: candidate.scoring === true,
+  });
 }
 
 export const outcomeLabels: Record<OutcomeKind, string> = {

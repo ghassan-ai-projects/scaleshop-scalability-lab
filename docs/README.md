@@ -1,6 +1,6 @@
 # ScaleShop Scalability Lab — specification index
 
-Status: **implemented pilot; data-validity remediation open**. [review-round-4.md](review-round-4.md) records seven Tier 1 findings that block the next shared-screen run, chiefly generated preset centers that violate metric conservation and interpolated option outcomes that are not causal.
+Status: **implemented pilot; round-4 data-validity remediation applied on `feat/data-validity-remediation`**. Preset centers that violated metric conservation and interpolated option outcomes are replaced with authored data plus a relationship-aware validation gate. See [review-round-4.md](review-round-4.md) §11.
 
 This folder defines the next version of the ScaleShop Scalability Lab. It preserves the strongest parts of the original simulation—12 progressive incidents, animated metrics, evidence discovery, upgrade choices, facilitator answers, before/after comparison, and a reference architecture budget—while making the experience clearer, fairer, and more challenging.
 

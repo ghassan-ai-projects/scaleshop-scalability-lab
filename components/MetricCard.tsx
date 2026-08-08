@@ -1,13 +1,14 @@
 "use client";
 
 import { useId, useState } from "react";
-import { deterministicWave, formatMetric, metricStatus, type MetricSpec } from "@/lib/workshop";
+import { formatMetric, metricMeter, metricStatus, type MetricSpec } from "@/lib/workshop";
 
-export function MetricCard({ metric, value, seed, paused }: { metric: MetricSpec; value: number | null; seed: number; paused: boolean }) {
+export function MetricCard({ metric, value }: { metric: MetricSpec; value: number | null }) {
   const status = metricStatus(value, metric);
-  const wave = deterministicWave(seed);
+  const meter = metricMeter(value, metric);
   const [definitionOpen, setDefinitionOpen] = useState(false);
   const definitionId = useId();
+  const movedFromBaseline = meter?.baselineAt !== null && meter?.baselineAt !== undefined;
   return (
     <article className={`metric-card status-${status}`} aria-label={`${metric.label}: ${formatMetric(value, metric)}, ${status}`}>
       <div className="metric-topline">
@@ -15,10 +16,23 @@ export function MetricCard({ metric, value, seed, paused }: { metric: MetricSpec
         <span className="status-word">{status === "risk" ? "At risk" : status === "observed" ? "Observed" : status[0].toUpperCase() + status.slice(1)}</span>
       </div>
       <strong>{formatMetric(value, metric)}</strong>
-      <div className={`spark-bars ${paused ? "is-paused" : ""}`} aria-hidden="true">
-        {wave.map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}
-      </div>
-      <small>{metric.threshold === undefined || metric.kind === "observation" ? metric.denominator ?? metric.window ?? "60-second window" : `Target ${metric.direction === "higher" ? "≥" : metric.direction === "zero" || metric.direction === "equal" ? "=" : "≤"} ${formatMetric(metric.threshold, metric)}`}</small>
+      {meter ? (
+        <div className="metric-meter" aria-hidden="true">
+          <i className="meter-fill" style={{ width: `${meter.fill}%` }} />
+          {movedFromBaseline && <i className="meter-baseline" style={{ left: `${meter.baselineAt}%` }} />}
+          {meter.thresholdAt !== null && <i className="meter-threshold" style={{ left: `${meter.thresholdAt}%` }} />}
+        </div>
+      ) : (
+        <div className="metric-meter is-empty" aria-hidden="true" />
+      )}
+      <small>
+        {metric.absentComponent && value === null
+          ? "Not measurable yet — this component does not exist"
+          : metric.threshold === undefined || metric.kind === "observation"
+            ? metric.denominator ?? metric.window ?? "60-second window"
+            : `Target ${metric.direction === "higher" ? "≥" : metric.direction === "zero" || metric.direction === "equal" ? "=" : "≤"} ${formatMetric(metric.threshold, metric)}`}
+        {movedFromBaseline && <span className="meter-legend"> · was {formatMetric(metric.value, metric)}</span>}
+      </small>
       {definitionOpen && <div className="metric-definition" id={definitionId} role="note">
         <strong>What this means</strong><p>{metric.definition}</p>
         <span>{metric.provenance.sourceClass.replaceAll("-", " ")}</span>

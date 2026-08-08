@@ -5,19 +5,23 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { levels } from "@/data/levels";
 import {
   calculateCanonicalLedger,
+  capstoneCoverage,
   capstoneMetricValue,
+  coreMetrics,
   formatMetric,
   initialWorkshopState,
   hypothesisRationale,
   metricStatus,
+  migrateWorkshopState,
+  missedDecisiveEvidence,
   orderedOptions,
   optionMetricValue,
   outcomeLabels,
   outcomeKindForSubmission,
-  parseWorkshopState,
   presetValue,
   scoreBreakdown,
   scoreSubmission,
+  type LevelSpec,
   type OptionSpec,
   type Submission,
   type TrafficPreset,
@@ -37,16 +41,8 @@ const scenarioPresetLabels: Partial<Record<number, Record<TrafficPreset, string>
   12: { normal: "No injection", campaign: "One failure", peak: "Coupled failures", incident: "Compound incident" },
 };
 
-function traceStages(evidenceId: string) {
-  if (evidenceId === "L2-E2") return [{ label: "Database", duration: 1690 }, { label: "App and network", duration: 150 }];
-  if (evidenceId === "L4-E2") return [{ label: "Email", duration: 4300 }, { label: "PDF", duration: 780 }, { label: "Core commit", duration: 100 }];
-  return [];
-}
-
-function coverageFor(optionIds: string[]) {
-  const coverage = new Set<string>();
-  optionIds.forEach((id) => levels[11].options.find((item) => item.id === id)?.coverage?.forEach((item) => coverage.add(item)));
-  return coverage;
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
 
 export function Workshop() {
@@ -57,8 +53,7 @@ export function Workshop() {
   const [mode, setMode] = useState<"participant" | "facilitator">("participant");
   const [spoilers, setSpoilers] = useState(false);
   const [preset, setPreset] = useState<TrafficPreset>("incident");
-  const [motionPaused, setMotionPaused] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const [hypothesisId, setHypothesisId] = useState("");
   const [citedEvidence, setCitedEvidence] = useState<string[]>([]);
   const [optionIds, setOptionIds] = useState<string[]>([]);
@@ -71,7 +66,7 @@ export function Workshop() {
   const resultRef = useRef<HTMLDivElement>(null);
   const orientationButtonRef = useRef<HTMLButtonElement>(null);
 
-  const level = levels[state.level - 1];
+  const level: LevelSpec = levels[state.level - 1];
   const submission = state.submissions[level.id];
   const revealed = state.revealed[level.id] ?? [];
   const hintCount = state.hints[level.id] ?? 0;
@@ -82,13 +77,16 @@ export function Workshop() {
   const selectedPoints = optionIds.reduce((sum, id) => sum + (level.options.find((item) => item.id === id)?.points ?? 0), 0);
 
   useEffect(() => {
+    setReducedMotion(prefersReducedMotion());
     try {
       const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
       if (saved) {
-        const raw = JSON.parse(saved);
-        const parsed = parseWorkshopState(raw.version ? raw : { ...raw, version: 2 });
+        const parsed = migrateWorkshopState(JSON.parse(saved));
         if (parsed && (parsed.level > 1 || parsed.adoptedThrough > 0 || Object.keys(parsed.submissions).length > 0)) setSavedCandidate(parsed);
-        else if (parsed) setState(parsed);
+        else if (parsed) {
+          setState(parsed);
+          setShowIntroduction(!parsed.orientationSeen);
+        }
       }
     } catch {
       setSaveStatus("memory");
@@ -111,7 +109,7 @@ export function Workshop() {
     setPrediction(existing?.prediction ?? "");
     setRisk(existing?.risk ?? "");
     setResultView("team");
-    setPreset(level.id === 1 ? "normal" : "incident");
+    setPreset("incident");
     setShowAllMetrics(false);
   }, [level.id, state.submissions]);
 
@@ -119,18 +117,14 @@ export function Workshop() {
     if (savedCandidate) orientationButtonRef.current?.focus();
   }, [savedCandidate]);
 
-  useEffect(() => {
-    if (motionPaused) return;
-    const id = window.setInterval(() => setTick((value) => value + 1), 2400);
-    return () => window.clearInterval(id);
-  }, [motionPaused]);
-
   const selectedOptions = useMemo(
     () => (submission?.optionIds ?? optionIds).map((id) => level.options.find((item) => item.id === id)).filter(Boolean) as OptionSpec[],
     [level.options, optionIds, submission],
   );
   const displayedOptions = useMemo(() => orderedOptions(level), [level]);
-  const displayedMetrics = showAllMetrics ? level.metrics : level.metrics.slice(0, 4);
+  const curatedCore = useMemo(() => coreMetrics(level, Boolean(submission)), [level, submission]);
+  const displayedMetrics = showAllMetrics ? level.metrics : curatedCore;
+  const hiddenMetricCount = level.metrics.length - curatedCore.length;
   const activePresetLabels = scenarioPresetLabels[level.id] ?? presetLabels;
 
   const selectedOutcome = useMemo(() => {
@@ -139,11 +133,12 @@ export function Workshop() {
     const kind = outcomeKindForSubmission(level, submission);
     const canonical = kind === "best";
     const alternate = kind === "costly";
-    const coverage = coverageFor(submission.optionIds);
+    const coverage = capstoneCoverage(level, submission.optionIds);
+    const dimensionCount = level.capstone.coverageDimensions.length;
     return {
       id: "capstone-outcome",
       title: canonical ? "Smallest sufficient resilience set" : alternate ? "Broader fallback set" : "Partially contained failure set",
-      mechanism: `${coverage.size} of 5 protection dimensions covered`, monthlyCost: 0, points: selectedOptions.reduce((sum, item) => sum + item.points, 0),
+      mechanism: `${coverage.size} of ${dimensionCount} protection dimensions covered`, monthlyCost: 0, points: selectedOptions.reduce((sum, item) => sum + item.points, 0),
       leadTime: "Layered program", reversibility: "Hard" as const,
       kind,
       summary: canonical
@@ -157,9 +152,22 @@ export function Workshop() {
 
   const hasNumericTeamOutcome = Boolean(submission);
 
+  // Derive from `current`, never from the render-scoped `revealed`. Reading the closure meant
+  // two clicks inside one React batch both built their array from the same stale snapshot, so
+  // the second silently overwrote the first and evidence reveals were lost.
   function revealEvidence(id: string) {
-    if (revealed.includes(id)) return;
-    setState((current) => ({ ...current, revealed: { ...current.revealed, [level.id]: [...revealed, id] } }));
+    setState((current) => {
+      const open = current.revealed[level.id] ?? [];
+      if (open.includes(id)) return current;
+      return { ...current, revealed: { ...current.revealed, [level.id]: [...open, id] } };
+    });
+  }
+
+  function revealHint() {
+    setState((current) => ({
+      ...current,
+      hints: { ...current.hints, [level.id]: Math.min(2, (current.hints[level.id] ?? 0) + 1) },
+    }));
   }
 
   function toggleCitation(id: string) {
@@ -191,13 +199,13 @@ export function Workshop() {
 
   function adoptAndContinue() {
     setState((current) => ({ ...current, adoptedThrough: Math.max(current.adoptedThrough, level.id), level: Math.min(12, level.id + 1) }));
-    window.scrollTo({ top: 0, behavior: motionPaused ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
   }
 
   function openLevel(levelId: number) {
     setShowIntroduction(false);
     setState((current) => ({ ...current, level: levelId, orientationSeen: true }));
-    window.scrollTo({ top: 0, behavior: motionPaused ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
   }
 
   function resetWorkshop() {
@@ -232,12 +240,18 @@ export function Workshop() {
     else void document.documentElement.requestFullscreen();
   }
 
+  /** What the team's own choice produced, independent of which view the cards are showing. */
+  function teamOutcomeValue(metricId: string) {
+    const metric = level.metrics.find((item) => item.id === metricId)!;
+    if (!submission) return metric.value;
+    if (level.capstone) return capstoneMetricValue(level, submission.optionIds, metricId);
+    return selectedOptions[0] ? optionMetricValue(level, selectedOptions[0], metricId) : metric.value;
+  }
+
   function valueFor(metricId: string) {
     const metric = level.metrics.find((item) => item.id === metricId)!;
     if (!submission) return presetValue(metric, preset);
-    if (resultView === "canonical") return metric.after;
-    if (level.capstone) return capstoneMetricValue(level, submission.optionIds, metricId);
-    return selectedOptions[0] ? optionMetricValue(level, selectedOptions[0], metricId) : metric.value;
+    return resultView === "canonical" ? metric.after : teamOutcomeValue(metricId);
   }
 
   if (!hydrated) return <main className="boot-shell"><div className="boot-mark">S</div><p>Restoring your workshop…</p></main>;
@@ -259,12 +273,12 @@ export function Workshop() {
 
       <nav className="journey" aria-label="Workshop levels">
         <div className="journey-scroll">
-          <button className={showIntroduction ? "active intro-tab" : "intro-tab"} onClick={() => { setShowIntroduction(true); window.scrollTo({ top: 0, behavior: motionPaused ? "auto" : "smooth" }); }} aria-current={showIntroduction ? "step" : undefined}>
+          <button className={showIntroduction ? "active intro-tab" : "intro-tab"} onClick={() => { setShowIntroduction(true); window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" }); }} aria-current={showIntroduction ? "step" : undefined}>
             <span>00</span><strong>Lab briefing</strong>
           </button>
           {levels.map((item) => {
             const done = state.adoptedThrough >= item.id;
-            return <button key={item.id} className={`${!showIntroduction && item.id === level.id ? "active" : ""} ${done ? "done" : ""}`} onClick={() => openLevel(item.id)} aria-current={!showIntroduction && item.id === level.id ? "step" : undefined}>
+            return <button key={item.id} title={`Level ${item.id}: ${item.participantTitle}`} className={`${!showIntroduction && item.id === level.id ? "active" : ""} ${done ? "done" : ""}`} onClick={() => openLevel(item.id)} aria-current={!showIntroduction && item.id === level.id ? "step" : undefined}>
               <span>{String(item.id).padStart(2, "0")}</span><strong>{item.participantTitle}</strong>{done && <i>✓</i>}
             </button>;
           })}
@@ -297,13 +311,13 @@ export function Workshop() {
           <div className="section-heading">
             <div><p className="eyebrow">60-second window</p><h2 id="telemetry-title">Core telemetry</h2></div>
             <div className="telemetry-controls">
-              {!submission && <div className="segmented" aria-label="Scenario preset">{(Object.keys(activePresetLabels) as TrafficPreset[]).map((item) => <button key={item} className={preset === item ? "active" : ""} onClick={() => setPreset(item)}>{activePresetLabels[item]}</button>)}</div>}
+              {!submission && !level.presetsUnavailable && <div className="segmented" aria-label="Scenario preset">{(Object.keys(activePresetLabels) as TrafficPreset[]).map((item) => <button key={item} className={preset === item ? "active" : ""} onClick={() => setPreset(item)}>{activePresetLabels[item]}</button>)}</div>}
               {submission && <div className="segmented"><button className={resultView === "team" ? "active" : ""} onClick={() => setResultView("team")}>Team experiment</button><button className={resultView === "canonical" ? "active" : ""} onClick={() => setResultView("canonical")}>Recommended reference</button></div>}
-              <button className="secondary-button" onClick={() => setMotionPaused((value) => !value)}>{motionPaused ? "Resume motion" : "Pause motion"}</button>
             </div>
           </div>
-          <div className="metric-grid">{displayedMetrics.map((item, index) => <MetricCard key={item.id} metric={item} value={valueFor(item.id)} seed={level.id * 20 + index + tick} paused={motionPaused} />)}</div>
-          {level.metrics.length > 4 && <button className="metric-expand" onClick={() => setShowAllMetrics((value) => !value)} aria-expanded={showAllMetrics}>{showAllMetrics ? "Show core signals only" : `Inspect ${level.metrics.length - 4} additional signals`}</button>}
+          {!submission && level.presetsUnavailable && <p className="preset-unavailable" role="note">{level.presetsUnavailable}</p>}
+          <div className="metric-grid">{displayedMetrics.map((item) => <MetricCard key={item.id} metric={item} value={valueFor(item.id)} />)}</div>
+          {hiddenMetricCount > 0 && <button className="metric-expand" onClick={() => setShowAllMetrics((value) => !value)} aria-expanded={showAllMetrics}>{showAllMetrics ? "Show core signals only" : `Inspect ${hiddenMetricCount} additional signals`}</button>}
         </section>
 
         <section id="evidence" className="panel evidence-panel" aria-labelledby="evidence-title">
@@ -312,9 +326,10 @@ export function Workshop() {
           <div className="evidence-grid">
             {level.evidence.map((item) => {
               const isOpen = revealed.includes(item.id); const cited = citedEvidence.includes(item.id);
+              const longestStage = Math.max(...(item.stages ?? [{ duration: 1 }]).map((entry) => entry.duration));
               return <article className={`evidence-card ${isOpen ? "open" : ""}`} key={item.id}>
                 <span className="category-label">{item.wave ? `Wave ${item.wave} · ` : ""}{item.category}</span><h3>{item.title}</h3>
-                {isOpen ? <><strong>{item.value}</strong>{traceStages(item.id).length > 0 && <div className="trace-breakdown" aria-label={`${item.title} stage durations`}>{traceStages(item.id).map((stage) => <div key={stage.label}><span>{stage.label}</span><i style={{ width: `${Math.max(8, stage.duration / Math.max(...traceStages(item.id).map((entry) => entry.duration)) * 100)}%` }} /><strong>{stage.duration.toLocaleString()} ms</strong></div>)}</div>}<p>{item.meaning}</p><label className="cite-control"><input type="checkbox" checked={cited} onChange={() => toggleCitation(item.id)} disabled={!cited && citedEvidence.length >= requiredEvidence || Boolean(submission)} /> Cite as decisive</label></> : <button onClick={() => revealEvidence(item.id)}>Inspect evidence <span>→</span></button>}
+                {isOpen ? <><strong>{item.value}</strong>{item.stages && <div className="trace-breakdown" aria-label={`${item.title} stage durations`}>{item.stages.map((stage) => <div key={stage.label}><span>{stage.label}</span><i style={{ width: `${Math.max(8, stage.duration / longestStage * 100)}%` }} /><strong>{stage.duration.toLocaleString()} ms</strong></div>)}</div>}<p>{item.meaning}</p><label className="cite-control"><input type="checkbox" checked={cited} onChange={() => toggleCitation(item.id)} disabled={!cited && citedEvidence.length >= requiredEvidence || Boolean(submission)} aria-label={`Cite ${item.title} as decisive`} /> Cite as decisive</label></> : <button onClick={() => revealEvidence(item.id)} aria-label={`Inspect ${item.title}`}>Inspect evidence <span>→</span></button>}
               </article>;
             })}
           </div>
@@ -339,7 +354,7 @@ export function Workshop() {
 
         {readyForOptions && <section className="panel reasoning-panel">
           <p className="eyebrow">Reason</p><h2>Predict the trade-off</h2>
-          {!submission && <div className="participant-hints"><button className="secondary-button" onClick={() => setState((current) => ({ ...current, hints: { ...current.hints, [level.id]: Math.min(2, hintCount + 1) } }))} disabled={hintCount >= 2}>Reveal free hint {Math.min(2, hintCount + 1)}</button>{level.hints.slice(0, hintCount).map((item, index) => <p key={item}><strong>Hint {index + 1}:</strong> {item}</p>)}</div>}
+          {!submission && <div className="participant-hints"><button className="secondary-button" onClick={revealHint} disabled={hintCount >= 2}>Reveal free hint {Math.min(2, hintCount + 1)}</button>{level.hints.slice(0, hintCount).map((item, index) => <p key={item}><strong>Hint {index + 1}:</strong> {item}</p>)}</div>}
           <div className="reasoning-grid">
             <label>Why is this the smallest sufficient change?<textarea value={fit} onChange={(event) => setFit(event.target.value)} disabled={Boolean(submission)} placeholder="Tie the mechanism to the stated constraint…" /></label>
             <label>What should improve—and remain unchanged?<textarea value={prediction} onChange={(event) => setPrediction(event.target.value)} disabled={Boolean(submission)} placeholder="Predict metric movement and a stable signal…" /></label>
@@ -350,12 +365,19 @@ export function Workshop() {
 
         {submission && selectedOutcome && <section id="debrief" className="panel result-panel" ref={resultRef} tabIndex={-1} aria-labelledby="result-title" aria-live="polite">
           <div className="result-banner"><span>{outcomeLabels[selectedOutcome.kind]}</span><strong id="result-title">{selectedOutcome.title}</strong><p>{selectedOutcome.summary}</p></div>
-          {hasNumericTeamOutcome && <div className="comparison-table-wrap"><table><caption>Modeled team experiment outcome; unlisted signals remain unchanged</caption><thead><tr><th>Signal</th><th>Before</th><th>Team outcome</th><th>Recommended reference</th></tr></thead><tbody>{level.metrics.map((item) => { const teamValue = resultView === "team" ? valueFor(item.id) : item.after; return <tr key={item.id}><th>{item.label}</th><td>{formatMetric(item.value, item)}</td><td><span className={`table-status status-${metricStatus(teamValue, item)}`}>{formatMetric(teamValue, item)}</span></td><td>{formatMetric(item.after, item)}</td></tr>; })}</tbody></table></div>}
+          {/* The table always reports the team's own outcome. It previously followed `resultView`,
+              so switching to the reference view rewrote the "Team outcome" column with the
+              canonical values and showed a team its result as the recommended one. */}
+          {hasNumericTeamOutcome && <div className="comparison-table-wrap"><table><caption>Modeled team experiment outcome; unlisted signals remain unchanged</caption><thead><tr><th>Signal</th><th>Before</th><th>Team outcome</th><th>Recommended reference</th></tr></thead><tbody>{level.metrics.map((item) => { const teamValue = teamOutcomeValue(item.id); return <tr key={item.id}><th>{item.label}</th><td>{formatMetric(item.value, item)}</td><td><span className={`table-status status-${metricStatus(teamValue, item)}`}>{formatMetric(teamValue, item)}</span></td><td>{formatMetric(item.after, item)}</td></tr>; })}</tbody></table></div>}
           <div className="contrast-debrief">
             <article><span>Your diagnosis</span><h3>{level.hypotheses.find((item) => item.id === submission.hypothesisId)?.label}</h3><p>{hypothesisRationale(level, submission.hypothesisId)}</p></article>
             <article><span>Your intervention</span><h3>{selectedOutcome.title}</h3><p>{selectedOptions.map((item) => item.areaFit).join(" ")}</p><p><strong>When it fits:</strong> {selectedOptions.map((item) => item.fitBoundary).join(" ")}</p></article>
             {selectedOutcome.kind !== "best" && <article className="canonical-answer"><span>Recommended next change</span><h3>{level.options.filter((item) => level.canonicalOptionIds.includes(item.id)).map((item) => item.title).join(" + ")}</h3><p>{level.options.filter((item) => level.canonicalOptionIds.includes(item.id)).map((item) => item.mechanism).join(" ")}</p><p><strong>Why:</strong> {level.official.fit}</p></article>}
           </div>
+          {missedDecisiveEvidence(level, submission).length > 0 && <div className="missed-evidence" role="note">
+            <span>Decisive evidence you did not cite</span>
+            <ul>{missedDecisiveEvidence(level, submission).map((item) => <li key={item.id}><strong>{item.title}</strong> — {item.value}. {item.meaning}</li>)}</ul>
+          </div>}
           <div className="debrief-grid">
             <article><span>Official diagnosis</span><h3>{level.official.bottleneck}</h3><p>{level.official.evidence}</p></article>
             <article><span>Why it fits</span><h3>{level.official.fit}</h3><p><strong>Verification:</strong> {level.official.verification}</p></article>
@@ -368,9 +390,8 @@ export function Workshop() {
 
         {mode === "facilitator" && <aside className="facilitator-dock" aria-label="Facilitator controls">
           <div><span className={`presenter-state ${spoilers ? "danger" : ""}`}>{spoilers ? "ANSWERS VISIBLE" : "PRESENTER SAFE"}</span><strong>Facilitator</strong></div>
-          <button onClick={() => setMotionPaused((value) => !value)}>{motionPaused ? "Resume" : "Pause"}</button>
-          <button disabled={state.adoptedThrough > 0 || Object.keys(state.submissions).length > 0} title="Scoring can only be changed before Level 1 begins" onClick={() => setState((current) => ({ ...current, scoring: !current.scoring }))}>{state.scoring ? "Hide score" : "Show score"}</button>
-          <button onClick={() => setState((current) => ({ ...current, hints: { ...current.hints, [level.id]: Math.min(2, hintCount + 1) } }))} disabled={hintCount >= 2}>Reveal hint {Math.min(2, hintCount + 1)}</button>
+          <button disabled={state.scoring} title="Scoring can be switched on at any time, but not switched off once the team has seen it" onClick={() => setState((current) => ({ ...current, scoring: true }))}>{state.scoring ? "Score shown" : "Show score"}</button>
+          <button onClick={revealHint} disabled={hintCount >= 2}>Reveal hint {Math.min(2, hintCount + 1)}</button>
           <button onClick={revealAnswer}>{spoilers ? "Answer revealed" : "Reveal answer"}</button>
           <button onClick={resetCurrentLevel}>Reset level</button>
           <button onClick={resetWorkshop}>Reset workshop</button>

@@ -1,8 +1,29 @@
 # Review round 4 — data validity, model integrity, and runtime audit
 
-Status: **findings recorded; no remediation applied in this document**
+Status: **Tiers 1–3 remediated on `feat/data-validity-remediation`; Tier 4 open**
 
 Review date: 2026-08-08. Baseline: commit `11dc27e`.
+
+## Remediation record
+
+Every Tier 1, Tier 2, and Tier 3 finding below is implemented. See
+[section 11](#11-remediation-summary) for the per-finding status and the four content decisions
+the fixes required. The findings are kept in their original wording so the branch diff can be
+read against them.
+
+The headline structural changes:
+
+- **Relationships are now data.** `LevelSpec.relationships` declares conservation, success-rate,
+  and burn-rate links between metrics, and the validation gate enforces them across every state
+  a participant can reach — the four presets, all 55 option outcomes, and the capstone sets.
+- **Option outcomes are authored, not interpolated.** `OPTION_OUTCOME_MODELS` and the
+  `value + (after − value) × progress` blend are deleted. All 55 standard options carry explicit
+  `metricEffects`; constructing an option without them throws at module load.
+- **Preset centers are authored wherever a relationship exists**, and flagged `flat` where the
+  quantity is structural or per-request. A level with no variance declares
+  `presetsUnavailable` and renders an explanation instead of an inert control.
+- **The validation gate exists.** `tests/content-validation.test.mjs` implements all twelve
+  checks from [section 10](#10-appendix--validation-gate-specification) and runs in `npm test`.
 
 ## Owner scope decision
 
@@ -621,3 +642,85 @@ run in `npm test` and fail the build.
     `best`.
 
 The last check already passes for all twelve levels and should be locked in.
+
+---
+
+## 11. Remediation summary
+
+Implemented on `feat/data-validity-remediation`. Test count went from 16 to 34; lint,
+typecheck, and build are clean.
+
+### Tier 1
+
+| ID | Fix |
+|---|---|
+| R4-P0-1 | `revealEvidence` and the hint counters derive from `current` inside the updater. Nine rapid clicks on the capstone now open nine cards; previously one. |
+| R4-P0-2 | The comparison table reads `teamOutcomeValue`, which ignores `resultView`. The segmented control now moves only the metric cards. |
+| R4-P0-3 | Authored preset centers for `offeredRps`/`completedRps` (L2), `accepted`/`useful` (L10), and `offeredCheckout`/`usefulCheckout` (L12), with `relationships` declared so the gate enforces them. |
+| R4-P0-4 | `amplification` carries `floor: 1` and authored centers starting at 1.0×. The floor is re-applied after capstone aggregation. |
+| R4-P0-5 | Level 1 declares `presetsUnavailable` and renders the reason in place of the control. |
+| §6 item 6 | Burn rate is 12× at 12% errors and 0.7× at 0.7%, declared as a `burnRate` relationship. |
+| R4-P1-7 | `deterministicWave` deleted. `metricMeter` renders fill, target rule, and a dashed incident baseline — three authored numbers, no animation, no tick interval. |
+
+### Tier 2
+
+| ID | Fix |
+|---|---|
+| R4-P1-1 | All 55 standard options author `metricEffects`; the interpolation branch and its model table are gone. |
+| R4-P1-2 | All five canonical-drift rows closed; the gate asserts the canonical option reproduces `after` for every metric on every standard level. |
+| R4-P1-3 | `flat` flag on structural and per-request metrics. "0.4 healthy instances" and a traffic-varying per-request query count are gone. |
+| R4-P1-9 | `traceCoverage`, `hitRatio`, `pruning`, and six others use `absent`, so they render N/A with an explanatory caption rather than a red 0%. |
+| R4-P1-4 | Per-kind risk bands. A capacity limit breaches when crossed; an SLO keeps a 1.2× tail band. Level 7's 91% primary now reads Breached. |
+| R4-P1-5 | `invariant` scores 25/90 against `wrong` at 56 and `costly` at 70. Breaching a stated invariant is now the worst available answer. |
+
+### Tier 3
+
+| ID | Fix |
+|---|---|
+| R4-P1-8 | `coreMetricIds` and `coreMetricIdsAfter` per level. Level 1's debrief now leads with sustainable capacity and the 84% database, not four healthy cards. |
+| R4-P1-6 | `motionPaused` replaced by `reducedMotion`, initialised from `matchMedia`. The 2,400 ms tick is deleted, so there is no motion left to leak past the media query. |
+| R4-P1-10 | `aria-label` on every inspect button and cite checkbox, naming the evidence item. |
+| R4-P1-11 | The journey strip wraps to two rows on desktop; all thirteen titles render in full with no truncation and no horizontal scroll. Narrow screens keep a single scrolling row. |
+| §6 items 1–5 | Resolved below. |
+| R4-P2-7 | The debrief names the decisive evidence the team did not cite. |
+
+### Cross-level physics — the content decisions taken
+
+1. **L1 → L2 application CPU.** Level 1's canonical `appCpu` lowered from 78% to 41%. The
+   database saturates first at the 31-RPS boundary, which is what sets up Level 2; a co-saturated
+   application muddied that and contradicted Level 2's 38% at a higher load.
+2. **L2 → L3 database throughput.** Kept as authored, with a `caveat` on `dbReads` stating that
+   catalogue listing reads are join-heavy and cost more per statement than Level 2's point
+   lookups. The caveat surfaces in the metric's "i" panel.
+3. **L2 internal non-linearity.** Same treatment: a `caveat` on `queries` explains that the
+   remediated 6 batched joins each do far more work than one of the 483 lookups.
+4. **L5 instance arithmetic.** Canonical `appCpu` lowered from 45% to 34%, which is 96% ÷ 3 plus
+   load-balancer overhead.
+5. **L11 hot-set arithmetic.** A `caveat` on `hotSet` states the assumption: row age is not
+   proportional to bytes, and the 650-GB target is measured after cold partitions and their
+   indexes are detached.
+
+### Defects the new gate caught during implementation
+
+The gate found five defects in the remediation itself before any of it was reviewed, which is
+the strongest evidence that it earns its place:
+
+1. Capstone aggregation drifted useful completion away from its own error rate under partial
+   coverage. Fixed by computing derived metrics from their inputs rather than interpolating them
+   independently.
+2. `L7-O1` did not author `writeIops`, so the canonical option missed its own outcome.
+3. `L5 dbConnections` was authored constant without the `flat` flag.
+4. `L4 checkoutP95` and three others breached at the calm preset without declaring why — which
+   surfaced a genuine content category, now the `standing` flag: conditions that are breached at
+   every preset because traffic is not what causes them (a synchronous provider, distance, 4.2 TB
+   of history).
+5. `L6 egress` breached at the calm preset because its centers were not proportional to origin
+   requests. Both are now derived from a stated 1.41 Mbit per request.
+
+### Out of scope, unchanged
+
+Facilitator-layer findings in [section 8](#8-out-of-scope-facilitator-layer) remain open by owner
+decision. Tier 4 hygiene items in [section 7](#7-p2-findings--code-quality) are partly addressed
+as a side effect — hardcoded level references, the dead `orientationSeen` field, the legacy
+migration, and the mid-session scoring lock are all fixed — but were not pursued
+systematically.
