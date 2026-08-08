@@ -52,22 +52,27 @@ a { color: inherit; }
 .mode-button.active { border-color: var(--amber); color: var(--amber); }
 .icon-button { width: 44px; min-height: 44px; font-size: 1.1rem; }
 
-.journey { border-bottom: 1px solid var(--line); background: #09120f; }
-.journey-scroll { display: flex; flex-wrap: wrap; max-width: 1500px; margin: auto; padding: 0 1rem; }
-/* Thirteen fixed tabs overflowed a 1500px container, so every title truncated to "Unknown
-   capa…" on a shared screen. The strip now wraps instead of scrolling, which keeps all twelve
-   incident titles readable at once — the journey is the spine of the workshop. */
-.journey button { position: relative; flex: 1 1 9.5rem; min-width: 0; max-width: 14rem; min-height: 3.4rem; display: grid; grid-template-columns: 1.6rem 1fr; align-content: center; gap: .2rem .45rem; padding: .55rem .65rem; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
-.journey button:first-child { border-left: 1px solid var(--line); }
-.journey button::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: transparent; }
-.journey button.active { background: var(--surface-2); }
-.journey button.active::after { background: var(--mint); }
-.journey button > span { grid-row: 1 / span 2; color: var(--quiet); font: 700 .7rem/1 ui-monospace, monospace; }
-.journey button strong { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: .72rem; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.journey button i { color: var(--mint); font-style: normal; font-size: .7rem; }
-.journey button.done strong, .journey button.active strong { color: var(--text); }
+.workshop-layout { display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); gap: 1rem; width: min(1720px, calc(100% - 2rem)); margin: 0 auto; transition: grid-template-columns .2s ease; }
+.workshop-layout.is-rail-collapsed { grid-template-columns: 4.5rem minmax(0, 1fr); }
+.journey { position: sticky; z-index: 20; top: 4.25rem; align-self: start; max-height: calc(100vh - 4.25rem); overflow: hidden; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 .75rem .75rem; background: #09120f; }
+.journey-header { min-height: 3rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .45rem .45rem .75rem; border-bottom: 1px solid var(--line); color: var(--quiet); font-size: .65rem; letter-spacing: .08em; text-transform: uppercase; }
+.journey-header > button { flex: 0 0 2.25rem; width: 2.25rem; min-height: 2.25rem; padding: 0; border: 1px solid var(--line); border-radius: .45rem; background: var(--surface); color: var(--muted); font-size: 1rem; }
+.journey-scroll { display: flex; flex-direction: column; max-height: calc(100vh - 7.25rem); overflow-y: auto; scrollbar-width: thin; }
+.journey-scroll > button { position: relative; min-width: 0; min-height: 3rem; display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; align-items: center; gap: .45rem; padding: .5rem .65rem; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
+.journey-scroll > button::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: transparent; }
+.journey-scroll > button.active { background: var(--surface-2); }
+.journey-scroll > button.active::after { top: 0; right: auto; width: 2px; height: auto; background: var(--mint); }
+.journey-scroll > button > span { color: var(--quiet); font: 700 .7rem/1 ui-monospace, monospace; }
+.journey-scroll > button strong { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: .72rem; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.journey-scroll > button i { color: var(--mint); font-style: normal; font-size: .7rem; }
+.journey-scroll > button.done strong, .journey-scroll > button.active strong { color: var(--text); }
+.journey.is-collapsed .journey-header { justify-content: center; padding-inline: .45rem; }
+.journey.is-collapsed .journey-header > strong,
+.journey.is-collapsed .journey-scroll > button > strong { display: none; }
+.journey.is-collapsed .journey-scroll > button { grid-template-columns: 1fr; justify-items: center; padding-inline: .35rem; }
+.journey.is-collapsed .journey-scroll > button i { position: absolute; top: .35rem; right: .35rem; }
 
-.workspace { width: min(1468px, calc(100% - 2rem)); margin: 0 auto; padding: 2.6rem 0 9rem; }
+.workspace { min-width: 0; width: 100%; padding: 2.6rem 0 9rem; }
 .level-hero { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2rem; margin-bottom: 1.5rem; }
 .level-hero h1 { max-width: 900px; margin: .2rem 0 .55rem; font-size: clamp(2.25rem, 5vw, 5.25rem); line-height: .95; letter-spacing: -.065em; }
 .level-hero > div:first-child > p:last-child { max-width: 820px; margin: 0; color: var(--muted); font-size: 1.02rem; line-height: 1.6; }
@@ -313,6 +318,19 @@ tbody th { color: var(--muted); font-weight: 650; }
   .intro-loop ol { grid-template-columns: repeat(3, 1fr); }
 }
 
+@media (max-width: 900px) {
+  .workshop-layout, .workshop-layout.is-rail-collapsed { display: block; width: 100%; }
+  .journey, .journey.is-collapsed { position: static; max-height: none; border-width: 0 0 1px; border-radius: 0; }
+  .journey-header { display: none; }
+  .journey-scroll { flex-direction: row; max-height: none; padding: 0 1rem; overflow-x: auto; overflow-y: hidden; }
+  .journey-scroll > button, .journey.is-collapsed .journey-scroll > button { flex: 0 0 9.5rem; min-height: 3.6rem; grid-template-columns: 1.6rem minmax(0, 1fr) auto; justify-items: stretch; padding: .55rem .65rem; border-right: 1px solid var(--line); border-bottom: 0; }
+  .journey-scroll > button:first-child { border-left: 1px solid var(--line); }
+  .journey-scroll > button.active::after { top: auto; right: 0; width: auto; height: 2px; }
+  .journey.is-collapsed .journey-scroll > button > strong { display: -webkit-box; }
+  .journey.is-collapsed .journey-scroll > button i { position: static; }
+  .workspace { width: min(1468px, calc(100% - 2rem)); margin: 0 auto; }
+}
+
 @media (max-width: 760px) {
   .topbar { min-height: 3.8rem; gap: .65rem; }
   .topbar-status { display: none; }
@@ -338,9 +356,7 @@ tbody th { color: var(--muted); font-weight: 650; }
 @media (max-width: 470px) {
   .brand small { display: none; }
   .brand > span:last-child { display: none; }
-  /* Wrapping thirteen tabs on a phone would cost seven rows, so narrow screens scroll instead. */
-  .journey-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-  .journey button { flex: 0 0 8rem; }
+  .journey-scroll > button, .journey.is-collapsed .journey-scroll > button { flex-basis: 8rem; }
   .architecture-grid, .metric-grid, .evidence-grid { grid-template-columns: 1fr; }
   .metric-grid { max-width: none; }
   .telemetry-controls { display: grid; }

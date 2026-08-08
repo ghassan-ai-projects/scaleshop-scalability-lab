@@ -63,6 +63,7 @@ export function Workshop() {
   const [resultView, setResultView] = useState<"team" | "canonical">("team");
   const [showAllMetrics, setShowAllMetrics] = useState(false);
   const [showIntroduction, setShowIntroduction] = useState(true);
+  const [levelRailCollapsed, setLevelRailCollapsed] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const orientationButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -271,21 +272,33 @@ export function Workshop() {
         </div>
       </header>
 
-      <nav className="journey" aria-label="Workshop levels">
-        <div className="journey-scroll">
-          <button className={showIntroduction ? "active intro-tab" : "intro-tab"} onClick={() => { setShowIntroduction(true); window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" }); }} aria-current={showIntroduction ? "step" : undefined}>
-            <span>00</span><strong>Lab briefing</strong>
-          </button>
-          {levels.map((item) => {
-            const done = state.adoptedThrough >= item.id;
-            return <button key={item.id} title={`Level ${item.id}: ${item.participantTitle}`} className={`${!showIntroduction && item.id === level.id ? "active" : ""} ${done ? "done" : ""}`} onClick={() => openLevel(item.id)} aria-current={!showIntroduction && item.id === level.id ? "step" : undefined}>
-              <span>{String(item.id).padStart(2, "0")}</span><strong>{item.participantTitle}</strong>{done && <i>✓</i>}
-            </button>;
-          })}
-        </div>
-      </nav>
+      <div className={`workshop-layout ${levelRailCollapsed ? "is-rail-collapsed" : ""}`}>
+        <nav className={`journey ${levelRailCollapsed ? "is-collapsed" : ""}`} aria-label="Workshop levels">
+          <div className="journey-header">
+            <strong>Workshop journey</strong>
+            <button
+              type="button"
+              aria-controls="journey-levels"
+              aria-expanded={!levelRailCollapsed}
+              aria-label={levelRailCollapsed ? "Expand level navigation" : "Collapse level navigation"}
+              title={levelRailCollapsed ? "Expand level navigation" : "Collapse level navigation"}
+              onClick={() => setLevelRailCollapsed((collapsed) => !collapsed)}
+            >{levelRailCollapsed ? "»" : "«"}</button>
+          </div>
+          <div className="journey-scroll" id="journey-levels">
+            <button aria-label="Level 0: Lab briefing" title="Level 0: Lab briefing" className={showIntroduction ? "active intro-tab" : "intro-tab"} onClick={() => { setShowIntroduction(true); window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" }); }} aria-current={showIntroduction ? "step" : undefined}>
+              <span>00</span><strong>Lab briefing</strong>
+            </button>
+            {levels.map((item) => {
+              const done = state.adoptedThrough >= item.id;
+              return <button key={item.id} aria-label={`Level ${item.id}: ${item.participantTitle}${done ? ", completed" : ""}`} title={`Level ${item.id}: ${item.participantTitle}`} className={`${!showIntroduction && item.id === level.id ? "active" : ""} ${done ? "done" : ""}`} onClick={() => openLevel(item.id)} aria-current={!showIntroduction && item.id === level.id ? "step" : undefined}>
+                <span>{String(item.id).padStart(2, "0")}</span><strong>{item.participantTitle}</strong>{done && <i aria-label="Completed">✓</i>}
+              </button>;
+            })}
+          </div>
+        </nav>
 
-      <div className="workspace">
+        <div className="workspace">
         {showIntroduction ? <LabIntroduction currentLevel={state.level} hasProgress={state.adoptedThrough > 0 || Object.keys(state.submissions).length > 0} onContinue={() => openLevel(state.level)} /> : <>
         <section className="level-hero" id="current-task">
           <div>
@@ -399,6 +412,7 @@ export function Workshop() {
           {spoilers && <div className="facilitator-popover spoiler"><span>Official diagnosis</span><p>{level.official.bottleneck}</p><strong>Recommended reference: {level.options.filter((item) => level.canonicalOptionIds.includes(item.id)).map((item) => item.title).join(", ")}</strong><p>{level.stretch}</p></div>}
         </aside>}
         </>}
+        </div>
       </div>
       </div>
 

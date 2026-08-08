@@ -245,3 +245,14 @@ test("level zero briefing explains the lab without becoming a scored level", asy
   assert.match(source, /Experiments are counterfactual/);
   assert.doesNotMatch(source, /LevelSpec|canonicalOptionIds|scoreSubmission/);
 });
+
+test("level navigation is collapsible on desktop and remains labeled", async () => {
+  const component = await readFile(new URL("../components/Workshop.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(component, /aria-controls="journey-levels"/);
+  assert.match(component, /aria-expanded={!levelRailCollapsed}/);
+  assert.match(component, /aria-label={`Level \$\{item\.id}: \$\{item\.participantTitle}/);
+  assert.match(styles, /\.workshop-layout\.is-rail-collapsed \{ grid-template-columns: 4\.5rem/);
+  assert.match(styles, /@media \(max-width: 900px\)[\s\S]*\.journey-scroll \{ flex-direction: row/);
+});
