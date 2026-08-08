@@ -239,10 +239,12 @@ test("content source defines all twelve levels and required investigation fields
 
 test("level zero briefing explains the lab without becoming a scored level", async () => {
   const source = await readFile(new URL("../components/LabIntroduction.tsx", import.meta.url), "utf8");
-  assert.match(source, /00 \/ Lab briefing/);
-  assert.match(source, /Twelve progressive engineering decisions/);
-  assert.match(source, /Reference architecture budget/);
-  assert.match(source, /Experiments are counterfactual/);
+  assert.match(source, /00 \/ Welcome to ScaleShop/);
+  assert.match(source, /Keep the shop healthy as it grows/);
+  assert.match(source, /Your shared budget/);
+  assert.match(source, /Good decisions you can explain/);
+  assert.doesNotMatch(source, /counterfactual|canonical|smallest sufficient|operating contract/);
+  assert.doesNotMatch(source, /[—–]/);
   assert.doesNotMatch(source, /LevelSpec|canonicalOptionIds|scoreSubmission/);
 });
 

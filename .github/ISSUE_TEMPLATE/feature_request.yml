@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose an improvement to the workshop or contributor experience.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What participant, facilitator, or contributor problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the result without prescribing unnecessary implementation detail.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Workshop experience
+        - Scenario content or metrics
+        - Accessibility
+        - Documentation
+        - Contributor tooling
+    validations:
+      required: true

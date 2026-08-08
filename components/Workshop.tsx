@@ -31,6 +31,7 @@ import { ArchitectureMap } from "./ArchitectureMap";
 import { MetricCard } from "./MetricCard";
 import { ReferenceBudget } from "./ReferenceBudget";
 import { LabIntroduction } from "./LabIntroduction";
+import { SiteFooter } from "./SiteFooter";
 
 const STORAGE_KEY = "scaleshop-workshop-v2";
 const LEGACY_STORAGE_KEY = "scaleshop-workshop-v1";
@@ -414,6 +415,7 @@ export function Workshop() {
         </>}
         </div>
       </div>
+      <SiteFooter />
       </div>
 
       {savedCandidate && <div className="modal-backdrop" role="presentation"><dialog open className="orientation-modal" aria-labelledby="resume-title" onKeyDown={trapDialog}><span className="orientation-kicker">Saved locally</span><h2 id="resume-title">Continue your workshop?</h2><p>A previous session reached Level {savedCandidate.level}. Resume it or start a clean run.</p><div className="resume-actions"><button ref={orientationButtonRef} className="primary-button" onClick={() => { setState(savedCandidate); setShowIntroduction(false); setSavedCandidate(null); }}>Resume workshop</button><button className="secondary-button" onClick={() => { setState(initialWorkshopState); setShowIntroduction(true); setSavedCandidate(null); }}>Start fresh</button></div></dialog></div>}
