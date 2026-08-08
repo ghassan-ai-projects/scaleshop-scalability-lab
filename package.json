@@ -1,7 +1,27 @@
 {
   "name": "scaleshop-scalability-lab",
   "version": "1.0.0",
+  "description": "An evidence-driven interactive scalability workshop for engineering teams.",
   "private": true,
+  "license": "MIT",
+  "author": {
+    "name": "Ghassan Al Hamoud",
+    "url": "https://ghassan-alhamoud.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ghassan-ai-projects/scaleshop-scalability-lab.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ghassan-ai-projects/scaleshop-scalability-lab/issues"
+  },
+  "keywords": [
+    "scalability",
+    "systems-design",
+    "engineering-workshop",
+    "performance",
+    "capacity-planning"
+  ],
   "engines": {
     "node": ">=22.13.0"
   },
@@ -10,7 +30,8 @@
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "node --test tests/*.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "check": "npm test && npm run lint && npm run build"
   },
   "dependencies": {
     "react": "19.2.6",

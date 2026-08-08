@@ -5,21 +5,21 @@ interface LabIntroductionProps {
 }
 
 const reasoningLoop = [
-  ["Inspect", "Read the operating contract, telemetry, and evidence."],
-  ["Diagnose", "Name the limiting mechanism—not only the symptom."],
-  ["Decide", "Choose the smallest sufficient, reversible change."],
-  ["Predict", "State what improves, what stays stable, and the new risk."],
-  ["Compare", "Run the modeled experiment and study the reference path."],
-  ["Adopt", "Continue the shared architecture only when ready."],
+  ["Look around", "Read the brief, open the evidence, and notice what changes."],
+  ["Make a call", "Say what you think is holding the shop back and why."],
+  ["Choose", "Pick the change that solves today's problem without adding more than you need."],
+  ["Think ahead", "Say what should improve, what should stay steady, and what could go wrong."],
+  ["See the result", "Run the scenario and compare your result with the workshop recommendation."],
+  ["Move on", "Take the agreed change into the next incident."],
 ] as const;
 
 export function LabIntroduction({ currentLevel, hasProgress, onContinue }: LabIntroductionProps) {
   return <div className="lab-introduction" id="current-task">
     <section className="intro-hero">
       <div>
-        <p className="eyebrow">00 / Lab briefing</p>
-        <h1>ScaleShop grows by evidence, not instinct.</h1>
-        <p>You are the engineering team for a growing online shop. Across twelve incidents, you will diagnose the next constraint, test a change, explain its trade-offs, and evolve one continuing architecture.</p>
+        <p className="eyebrow">00 / Welcome to ScaleShop</p>
+        <h1>You are now responsible for ScaleShop.</h1>
+        <p>The shop starts small, and the first few days are quiet. Then traffic grows, reports get heavier, dependencies slow down, and failures begin to overlap. Twelve incidents will test how your team reads the signals, makes tradeoffs, and keeps the shop dependable.</p>
       </div>
       <button className="primary-button intro-start" onClick={onContinue}>
         {hasProgress ? `Return to Level ${String(currentLevel).padStart(2, "0")}` : "Start Level 01"} <span>→</span>
@@ -29,21 +29,21 @@ export function LabIntroduction({ currentLevel, hasProgress, onContinue }: LabIn
     <section className="intro-overview" aria-label="Lab overview">
       <article className="panel intro-card">
         <p className="eyebrow">The shop</p>
-        <h2>Catalogue, checkout, and confirmed orders</h2>
-        <p>ScaleShop begins as a small monolith backed by PostgreSQL and external payment, email, and warehouse services. Traffic, data, dependencies, and failure modes grow as the lab progresses.</p>
-        <p>Customer latency matters, but correctness is never optional: no lost confirmed orders, duplicate orders, or oversold stock.</p>
+        <h2>A catalogue, a checkout, and real promises to customers</h2>
+        <p>ScaleShop starts as one application with PostgreSQL behind it. Payment, email, and warehouse systems sit outside the shop. As the story moves forward, more customers arrive, more data piles up, and those connections become harder to manage.</p>
+        <p>Speed matters, but an order also has to be right. Confirmed orders cannot disappear. Customers should not receive duplicates, and the shop must not sell stock it does not have.</p>
       </article>
       <article className="panel intro-card">
         <p className="eyebrow">Your mission</p>
-        <h2>Twelve progressive engineering decisions</h2>
-        <p>Each level presents an operating contract and a specific pressure. Your answer is committed once, but wrong experiments are useful: their modeled consequences reveal why an intervention fits—or targets the wrong area.</p>
-        <p>This is a reasoning lab, not a cloud-product quiz. Prefer evidence, mechanisms, simplicity, and reversibility.</p>
+        <h2>Keep the shop healthy as it grows</h2>
+        <p>Each level puts one new problem in front of you. Look through the evidence, agree on what is really causing the problem, and choose what you would change next. You can submit one answer, but a miss is still useful because you will see what your choice actually changes.</p>
+        <p>Do not hunt for a particular tool. Start with what customers are feeling, listen to what the system is telling you, and add only the complexity the shop needs today.</p>
       </article>
     </section>
 
     <section className="panel intro-loop" aria-labelledby="intro-loop-title">
       <p className="eyebrow">How each level works</p>
-      <h2 id="intro-loop-title">One repeatable diagnostic loop</h2>
+      <h2 id="intro-loop-title">Use the same rhythm every time</h2>
       <ol>{reasoningLoop.map(([title, description], index) => <li key={title}>
         <span>{String(index + 1).padStart(2, "0")}</span><div><strong>{title}</strong><p>{description}</p></div>
       </li>)}</ol>
@@ -51,19 +51,19 @@ export function LabIntroduction({ currentLevel, hasProgress, onContinue }: LabIn
 
     <section className="intro-overview">
       <article className="panel intro-card">
-        <p className="eyebrow">Reference architecture budget</p>
-        <h2>€6,000/month · 70 effort points</h2>
-        <p>Experiments are counterfactual and free to explore. Only adopting the recommended reference path spends the continuing scenario budget. Effort points compare delivery and organizational load; they are not people or calendar days.</p>
-        <p>Level 12 uses a separate resilience design budget for combining failure protections.</p>
+        <p className="eyebrow">Your shared budget</p>
+        <h2>€6,000 each month and 70 effort points</h2>
+        <p>Trying an idea does not spend the budget. It changes only when the team accepts the workshop recommendation and moves on. Effort points are a simple way to compare how much work and coordination a change will take. They are not people or calendar days.</p>
+        <p>The final incident has its own smaller budget because you will combine several ways to contain failure.</p>
       </article>
       <article className="panel intro-card">
         <p className="eyebrow">What success looks like</p>
-        <h2>Defensible decisions, not perfect guesses</h2>
+        <h2>Good decisions you can explain</h2>
         <ul>
-          <li>Tie the diagnosis to decisive evidence.</li>
-          <li>Predict a measurable improvement and a stable signal.</li>
-          <li>Protect business invariants while scaling.</li>
-          <li>Name the complexity introduced by every change.</li>
+          <li>Show which evidence led you to the cause.</li>
+          <li>Say what should improve and what should stay steady.</li>
+          <li>Keep orders correct while the system grows.</li>
+          <li>Be honest about the new work and risk your choice creates.</li>
         </ul>
       </article>
     </section>
