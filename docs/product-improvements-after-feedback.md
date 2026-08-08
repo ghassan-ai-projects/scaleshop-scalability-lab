@@ -1,7 +1,14 @@
 # Product improvements after the feedback rounds
 
-Status: **recommended next work, not required for the current core learning loop**
-Review date: 2026-08-07
+Status: **partially superseded** — see [review-round-4.md](review-round-4.md)
+Review date: 2026-08-07. Amended 2026-08-08.
+
+> **Amendment (2026-08-08).** The repository owner has declined the facilitator-layer work.
+> Sections **1 (completion decision journal)** and **2 (facilitator operating layer)** are
+> **out of scope**, and priority-order entries 2 and 3 are withdrawn. Section **5 (replace
+> decorative sparklines)** is promoted from sixth to Tier 1 — round 4 confirmed the bars encode
+> no authored value at all. Section **4 (content validation gate)** remains priority 1 and now
+> has a concrete check list in [review-round-4.md](review-round-4.md) §10.
 
 The lab is good enough for another moderated validation round. The recent work fixed the largest trust and self-guided-learning gaps: deterministic outcomes, metric definitions, contrastive feedback, clearer hints, safer persistence, and an understandable reference architecture budget.
 
@@ -75,12 +82,14 @@ Acceptance: the matrix records browser, assistive technology, result, and any kn
 
 ## Priority order
 
-1. Content validation gate.
-2. Completion decision journal.
-3. Facilitator run cards.
-4. Data-driven architecture relationships.
-5. Accessibility/presentation matrix.
-6. Causal metric transitions.
+Revised 2026-08-08. Tier assignments align with [review-round-4.md](review-round-4.md) §9.
+
+1. Causal metric transitions — replace the decorative sparklines (Tier 1). *Promoted from 6.*
+2. Content validation gate (Tier 1–2); check list in [review-round-4.md](review-round-4.md) §10.
+3. Data-driven architecture relationships (Tier 3).
+4. Accessibility/presentation matrix (Tier 3).
+
+Withdrawn by owner decision: completion decision journal, facilitator run cards.
 
 ## Explicitly not recommended now
 
