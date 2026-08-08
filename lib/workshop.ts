@@ -193,7 +193,7 @@ export function formatMetric(value: number | null, metric: MetricSpec): string {
  * "at risk" — a level whose entire narrative is an overloaded primary never turned red.
  */
 const RISK_BANDS: Record<"capacity" | "slo", { lower: number; higher: number }> = {
-  capacity: { lower: 0.9, higher: 1.1 },
+  capacity: { lower: 0.9, higher: 0.9 },
   slo: { lower: 1.2, higher: 0.85 },
 };
 

@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { capstoneMetricValue, coreMetrics, metricStatus, optionMetricValue } from "../lib/workshop.ts";
+import { capstoneMetricValue, coreMetrics, metricStatus, optionMetricValue, outcomeKindForSubmission } from "../lib/workshop.ts";
 import { levels } from "../data/levels.ts";
 
 const PRESETS = ["normal", "campaign", "peak", "incident"];
@@ -232,5 +232,28 @@ test("the capstone's alternate set is authored and genuinely restores the constr
   const declared = new Set(coverageDimensions);
   for (const option of level.options) {
     for (const dimension of option.coverage ?? []) assert.ok(declared.has(dimension), `${option.id} covers undeclared ${dimension}`);
+  }
+});
+
+test("only recognized capstone solutions restore every modeled constraint", () => {
+  const level = levels[11];
+  const optionCount = level.options.length;
+
+  for (let mask = 0; mask < 2 ** optionCount; mask += 1) {
+    const selected = level.options.filter((_, index) => (mask & (1 << index)) !== 0);
+    const points = selected.reduce((sum, option) => sum + option.points, 0);
+    if (selected.length > level.capstone.maxSelections || points > level.capstone.budget) continue;
+
+    const optionIds = selected.map((option) => option.id);
+    const kind = outcomeKindForSubmission(level, { optionIds });
+    const fullyRestored = level.metrics.every(
+      (metric) => capstoneMetricValue(level, optionIds, metric.id) === metric.after,
+    );
+
+    assert.equal(
+      fullyRestored,
+      kind === "best" || kind === "costly",
+      `Capstone set ${optionIds.join(", ") || "(empty)"} is ${kind} but full restoration is ${fullyRestored}`,
+    );
   }
 });

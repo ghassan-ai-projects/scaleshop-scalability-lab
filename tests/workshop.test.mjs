@@ -51,6 +51,13 @@ test("a capacity limit breaches when crossed; the warning band sits below it", (
   assert.equal(metricStatus(91, utilization), "breached");
 });
 
+test("a higher-is-better capacity target warns before it breaches", () => {
+  const throughput = { ...utilization, id: "throughput", direction: "higher", threshold: 100 };
+  assert.equal(metricStatus(100, throughput), "healthy");
+  assert.equal(metricStatus(95, throughput), "risk");
+  assert.equal(metricStatus(89, throughput), "breached");
+});
+
 test("the metric meter encodes the value, the target, and the incident baseline", () => {
   const meter = metricMeter(180, latency);
   assert.ok(meter.fill > 0 && meter.fill < 100);
