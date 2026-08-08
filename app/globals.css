@@ -53,14 +53,17 @@ a { color: inherit; }
 .icon-button { width: 44px; min-height: 44px; font-size: 1.1rem; }
 
 .journey { border-bottom: 1px solid var(--line); background: #09120f; }
-.journey-scroll { display: flex; max-width: 1500px; margin: auto; padding: 0 1rem; overflow-x: auto; scrollbar-width: thin; }
-.journey button { position: relative; flex: 0 0 9.5rem; min-height: 4.5rem; display: grid; grid-template-columns: 1.6rem 1fr; align-content: center; gap: .2rem .45rem; padding: .65rem .65rem; border: 0; border-right: 1px solid var(--line); background: transparent; text-align: left; }
+.journey-scroll { display: flex; flex-wrap: wrap; max-width: 1500px; margin: auto; padding: 0 1rem; }
+/* Thirteen fixed tabs overflowed a 1500px container, so every title truncated to "Unknown
+   capa…" on a shared screen. The strip now wraps instead of scrolling, which keeps all twelve
+   incident titles readable at once — the journey is the spine of the workshop. */
+.journey button { position: relative; flex: 1 1 9.5rem; min-width: 0; max-width: 14rem; min-height: 3.4rem; display: grid; grid-template-columns: 1.6rem 1fr; align-content: center; gap: .2rem .45rem; padding: .55rem .65rem; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
 .journey button:first-child { border-left: 1px solid var(--line); }
 .journey button::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: transparent; }
 .journey button.active { background: var(--surface-2); }
 .journey button.active::after { background: var(--mint); }
 .journey button > span { grid-row: 1 / span 2; color: var(--quiet); font: 700 .7rem/1 ui-monospace, monospace; }
-.journey button strong { overflow: hidden; color: var(--muted); font-size: .72rem; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.journey button strong { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: .72rem; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .journey button i { color: var(--mint); font-style: normal; font-size: .7rem; }
 .journey button.done strong, .journey button.active strong { color: var(--text); }
 
@@ -179,10 +182,18 @@ a { color: inherit; }
 .metric-definition p { margin: .4rem 0; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .metric-definition > span { display: inline-block; padding: .25rem .4rem; border-radius: 99px; background: #07110e; color: var(--blue); font: 700 .62rem/1 ui-monospace, monospace; text-transform: uppercase; }
 .metric-expand { display: block; margin: .85rem 0 0 auto; padding: .55rem 0; border: 0; background: transparent; color: var(--mint); font-size: .72rem; font-weight: 800; }
-.spark-bars { display: flex; align-items: end; gap: 2px; height: 2.2rem; margin-bottom: .55rem; overflow: hidden; }
-.spark-bars i { flex: 1; min-width: 1px; border-radius: 1px; background: currentColor; opacity: .34; animation: pulse-bar 2.8s ease-in-out infinite alternate; }
-.spark-bars i:nth-child(3n) { animation-delay: -.8s; }
-.spark-bars.is-paused i { animation-play-state: paused; }
+/* Every mark here encodes an authored number: the fill is the current value, the solid rule is
+   the target, and the dashed rule is the incident baseline. Nothing is generated or animated. */
+.metric-meter { position: relative; height: .95rem; margin-bottom: .55rem; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.metric-meter.is-empty { background: repeating-linear-gradient(115deg, var(--surface-3) 0 6px, transparent 6px 12px); }
+.meter-fill { display: block; height: 100%; border-radius: 99px; background: currentColor; opacity: .55; transition: width .45s ease; }
+.status-breached .meter-fill { background: var(--red); }
+.status-risk .meter-fill { background: var(--amber); }
+.status-healthy .meter-fill { background: var(--mint); }
+.status-observed .meter-fill { background: var(--blue); }
+.meter-threshold { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: .8; }
+.meter-baseline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--quiet); }
+.meter-legend { color: var(--quiet); }
 
 .evidence-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; }
 .evidence-card { min-height: 11.5rem; display: flex; flex-direction: column; padding: .9rem; border: 1px solid var(--line); border-radius: .65rem; background: #091512; }
@@ -286,7 +297,13 @@ tbody th { color: var(--muted); font-weight: 650; }
 .orientation-note { margin: 1rem 0; padding: .75rem; border-left: 2px solid var(--amber); background: rgb(241 189 96 / .07); color: var(--muted); font-size: .75rem; line-height: 1.5; }
 .resume-actions { display: flex; gap: .7rem; margin-top: 1rem; }
 
-@keyframes pulse-bar { to { transform: scaleY(.82); opacity: .55; } }
+.preset-unavailable { margin: 0 0 1rem; padding: .7rem .85rem; border-left: 2px solid var(--blue); border-radius: 0 .4rem .4rem 0; background: rgb(129 180 255 / .08); color: var(--muted); font-size: .78rem; line-height: 1.55; }
+
+.missed-evidence { margin: 1.1rem 0; padding: .85rem 1rem; border: 1px dashed var(--line-bright); border-radius: .6rem; background: var(--surface-2); }
+.missed-evidence > span { display: block; margin-bottom: .5rem; color: var(--amber); font-size: .67rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.missed-evidence ul { display: grid; gap: .45rem; margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+.missed-evidence strong { color: var(--text); }
+
 @keyframes reveal-node { from { transform: translateY(8px); opacity: 0; } }
 
 @media (max-width: 1050px) {
@@ -321,7 +338,9 @@ tbody th { color: var(--muted); font-weight: 650; }
 @media (max-width: 470px) {
   .brand small { display: none; }
   .brand > span:last-child { display: none; }
-  .journey button { flex-basis: 8rem; }
+  /* Wrapping thirteen tabs on a phone would cost seven rows, so narrow screens scroll instead. */
+  .journey-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .journey button { flex: 0 0 8rem; }
   .architecture-grid, .metric-grid, .evidence-grid { grid-template-columns: 1fr; }
   .metric-grid { max-width: none; }
   .telemetry-controls { display: grid; }

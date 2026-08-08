@@ -1,6 +1,6 @@
 # ScaleShop Scalability Lab — specification index
 
-Status: **implemented pilot; content calibration and acceptance review remain in progress**.
+Status: **implemented pilot; round-4 data-validity remediation applied on `feat/data-validity-remediation`**. Preset centers that violated metric conservation and interpolated option outcomes are replaced with authored data plus a relationship-aware validation gate. See [review-round-4.md](review-round-4.md) §11.
 
 This folder defines the next version of the ScaleShop Scalability Lab. It preserves the strongest parts of the original simulation—12 progressive incidents, animated metrics, evidence discovery, upgrade choices, facilitator answers, before/after comparison, and a reference architecture budget—while making the experience clearer, fairer, and more challenging.
 
@@ -15,6 +15,20 @@ This folder defines the next version of the ScaleShop Scalability Lab. It preser
 - [review-round-3.md](review-round-3.md) — full implementation audit: metric/value verification, preset-formula contradictions, option-position bias, scoring gaps, usability, cost model, and visual review.
 - [engineer-feedback-assessment.md](engineer-feedback-assessment.md) — assessment and implementation plan for pilot-tester feedback (APM surface, standard-metric tooltips, contrastive debrief).
 - [product-improvements-after-feedback.md](product-improvements-after-feedback.md) — prioritized next improvements after the implemented feedback rounds, plus deliberately deferred complexity.
+- [review-round-4.md](review-round-4.md) — data-validity, outcome-model, and runtime audit: metric conservation defects, interpolated option outcomes, preset generation, scoring rank, accessibility, cross-level physics, and a concrete validation-gate specification.
+
+## Scope decision — facilitator layer
+
+The repository owner has **declined the facilitator-layer work**. In-app run cards, a
+facilitation timer, and the completion decision journal are out of scope for the near-term
+backlog. This supersedes items 2 and 6 of the priority order in
+[product-improvements-after-feedback.md](product-improvements-after-feedback.md), and the
+unimplemented parts of [facilitator-spec.md](facilitator-spec.md) §2–§3 remain open by
+decision rather than by oversight. Findings in that area are recorded in
+[review-round-4.md](review-round-4.md) §8 but must not be treated as blockers.
+
+The 180-minute run sheet and facilitation cadence remain valid as **documentation the
+facilitator reads outside the product**.
 
 ## Recommended review baseline
 
