@@ -170,11 +170,12 @@ const option = (
   risk: string,
   metricEffects?: Record<string, number | null>,
   coverage?: string[],
+  covers?: string,
 ): OptionSpec => {
   if (!metricEffects && !id.startsWith("L12-")) throw new Error(`${id} has no authored metricEffects`);
   return {
     id, title, mechanism, monthlyCost, points, leadTime: leadTime(points), reversibility, kind, summary, risk,
-    metricEffects, coverage, areaFit: areaFit(kind), fitBoundary: fitBoundary(kind),
+    metricEffects, coverage, covers, areaFit: areaFit(kind), fitBoundary: fitBoundary(kind),
   };
 };
 
@@ -749,9 +750,9 @@ const lateLevels: LevelSpec[] = [
     participantTitle: "Everything fails at once",
     techniqueTitle: "Design for failure under load",
     phase: "Survive",
-    incident: "At peak traffic, Redis restarts, email times out, workers stop, one zone is lost, a replica lags, and a faulty deployment raises errors.",
+    incident: "At peak traffic, six failures hit inside one minute, in three waves. Dependency: Redis restarts and the email provider times out. Overload: unbounded retries amplify load while stopped workers let the job backlog grow. Infrastructure: one zone is lost and a bad deployment reaches every instance at once. Confirmed orders are still safely stored, but customers see ambiguous timeouts.",
     question: "Which protections preserve confirmed orders, and what risk will you deliberately leave uncovered?",
-    constraints: ["Confirmed orders never disappear", "Checkout outranks email/analytics", "Catalogue may degrade", "Retries remain bounded", "Stop harmful rollout", "12 resilience points · max 4 actions"],
+    constraints: ["Confirmed orders never disappear", "Checkout outranks email and analytics", "Catalogue may serve stale data", "Retry amplification stays bounded", "Detect and stop a harmful rollout", "Budget: 12 resilience points, at most 4 actions"],
     metrics: [
       metric("offeredCheckout", "Offered checkout", 30, 30, "/s", undefined, "lower", 0, "observation", "60-second window", "All arriving checkout requests", { flat: true }),
       // Authored from offeredCheckout and errors: 30 × (1 − errors/100). The previous generated
@@ -761,7 +762,7 @@ const lateLevels: LevelSpec[] = [
       // Burn rate is error rate divided by the 1% error budget, so it tracks errors exactly.
       metric("burn", "SLO burn rate", 12, 0.7, "×", 1, "lower", 1, "slo", "60-second window", "Allowed error budget", { presets: [0.4, 2.1, 6.5, 12] }),
       metric("checkoutP95", "Checkout p95", 6200, 690, "ms", 800, "lower", 0, "slo", "60-second window", undefined, { presets: [480, 900, 2400, 6200] }),
-      metric("queueAge", "Oldest queued job", 26, 12, "min", 12, "lower", 0, "capacity", "60-second window", undefined, { presets: [1, 4, 14, 26] }),
+      metric("queueAge", "Oldest queued job", 26, 9, "min", 12, "lower", 0, "capacity", "60-second window", undefined, { presets: [1, 4, 14, 26] }),
       metric("amplification", "Retry amplification", 2.4, 1.1, "×", 1.2, "lower", 1, "capacity", "60-second window", "Original offered requests", { presets: [1, 1.3, 1.8, 2.4], floor: 1 }),
       metric("orderLoss", "Confirmed order loss", 0, 0, "", 0, "zero", 0, "invariant"),
     ],
@@ -775,7 +776,7 @@ const lateLevels: LevelSpec[] = [
       evidence("L12-E1", "Dependencies", "Timeout policy", "Shared 30-second timeout on every dependency", "A timeout budget can be compared with the caller deadline and dependency criticality.", "decisive", 1),
       evidence("L12-E2", "Dependencies", "Retry policy", "Immediate, unbounded retries in two clients", "Attempt counts show whether retries multiply the original load.", "decisive", 2),
       evidence("L12-E3", "Capacity", "Shared pools", "Checkout, workers, and dependencies share pools", "Pool ownership determines which workloads can consume the same concurrency.", "decisive", 2),
-      evidence("L12-E4", "Operations", "Customer impact", "12% errors · 22× SLO burn", "Burn rate compares current failures with the allowed error budget.", "supporting", 2),
+      evidence("L12-E4", "Operations", "Customer impact", "12% errors · 12× SLO burn", "Burn rate compares current failures with the allowed error budget.", "supporting", 2),
       evidence("L12-E5", "Queue", "Worker stop", "Oldest job reaches 26 minutes", "Oldest age shows how long asynchronous work has waited.", "supporting", 2),
       evidence("L12-E6", "Delivery", "Fleet deployment", "One release reaches every instance at once", "Rollout shape determines how much capacity receives the same change simultaneously.", "decisive", 3),
       evidence("L12-E7", "Cache", "Redis restart", "Database reads surge 6.4× during refill", "Refill load measures how cache loss transfers work to the source.", "supporting", 1),
@@ -787,15 +788,15 @@ const lateLevels: LevelSpec[] = [
       { id: "L12-H3", label: "Timeout length", score: 5 }, { id: "L12-H4", label: "Missing active-active writes", score: 10 },
     ],
     options: [
-      option("L12-A1", "Dependency budgets", "Use dependency-specific timeouts plus bounded retries, backoff, jitter, and idempotency.", 0, 2, "Moderate", "best", "Contains long hangs and retry amplification.", "Incorrect budgets and delayed recovery.", undefined, ["dependency", "amplification"]),
-      option("L12-A2", "Graceful isolation", "Use circuit breakers and fallbacks for catalogue, email, and analytics.", 0, 3, "Moderate", "costly", "Preserves more non-critical availability but does not directly govern retries.", "Breaker oscillation and stale fallback policy.", undefined, ["dependency"]),
-      option("L12-A3", "Resource containment", "Use checkout bulkheads, bounded worker queues, and backpressure.", 0, 3, "Moderate", "best", "Prevents secondary failure from consuming checkout resources.", "Rejected work, queue tuning, and fairness.", undefined, ["amplification", "checkout-resources", "queue-recovery"]),
-      option("L12-A4", "Zone recovery", "Use multi-zone app placement, automated database failover, and tested restore.", 0, 4, "Hard", "best", "Restores critical service through zone loss.", "Failover data risk and higher operating burden.", undefined, ["zone"]),
-      option("L12-A5", "Progressive delivery", "Use a canary and health-based automatic rollback.", 0, 2, "Moderate", "best", "Stops a harmful release before fleet-wide impact.", "False-positive rollback and metric selection.", undefined, ["deploy"]),
-      option("L12-A6", "Worker elasticity", "Scale workers from oldest-job age.", 0, 2, "Easy", "partial", "Helps backlog recovery but not poison jobs or checkout isolation.", "Cost spikes and unstable scaling.", undefined, ["queue-recovery"]),
-      option("L12-A7", "Cache refill shielding", "Rate-limit and coalesce cache refill.", 0, 2, "Moderate", "partial", "Contains the Redis restart surge only.", "Slower warm-up and narrow coverage.", undefined, ["cache-refill"]),
-      option("L12-A8", "Larger shared pools", "Increase every shared pool limit.", 0, 2, "Easy", "partial", "Buys brief concurrency while preserving shared failure.", "More downstream overload."),
-      option("L12-A9", "Active-active writes", "Build multi-region active-active writes for every component.", 0, 7, "Hard", "costly", "Covers a wider failure than required at major consistency cost.", "Conflicts, split brain, and operational complexity.", undefined, ["zone"]),
+      option("L12-A1", "Dependency budgets", "Per-dependency timeouts plus bounded retries, backoff, jitter, and idempotency.", 0, 2, "Moderate", "best", "Caps hang time and stops retries from multiplying load — one action covers two domains.", "Incorrect budgets and delayed recovery.", undefined, ["dependency", "amplification"], "Dependency hangs + retry amplification"),
+      option("L12-A2", "Graceful isolation", "Circuit breakers and explicit fallbacks for catalogue, email, and analytics.", 0, 3, "Moderate", "costly", "Preserves more non-critical availability, but costs more than A1 and does not directly govern retries.", "Breaker oscillation and stale fallback policy.", undefined, ["dependency"], "Dependency availability (catalogue, email, analytics)"),
+      option("L12-A3", "Resource containment", "Checkout bulkheads, bounded worker queues, and backpressure.", 0, 3, "Moderate", "best", "Stops the overload wave from consuming checkout's own capacity, and drains the backlog.", "Rejected work, queue tuning, and fairness.", undefined, ["amplification", "checkout-resources", "queue-recovery"], "Checkout isolation + worker backlog"),
+      option("L12-A4", "Zone recovery", "Multi-zone app placement, automated database failover, and tested restore.", 0, 4, "Hard", "best", "Restores critical service and keeps writes durable through the loss of one zone.", "Failover data risk and higher operating burden.", undefined, ["zone"], "Zone loss + durable failover"),
+      option("L12-A5", "Progressive delivery", "A canary release with health-based automatic rollback.", 0, 2, "Moderate", "best", "Stops the bad deployment before it reaches the whole fleet — the only action that does.", "False-positive rollback and metric selection.", undefined, ["deploy"], "Bad deployment"),
+      option("L12-A6", "Worker elasticity", "Scale workers from oldest-job age.", 0, 2, "Easy", "partial", "Helps the backlog recover but does not isolate checkout or handle poison jobs; A3 already covers backlog.", "Cost spikes and unstable scaling.", undefined, ["queue-recovery"], "Worker backlog only (recovery, not isolation)"),
+      option("L12-A7", "Cache refill shielding", "Rate-limit and coalesce cache refill after a restart.", 0, 2, "Moderate", "partial", "Contains the Redis-restart surge only; the surge is transient and no constraint depends on this alone.", "Slower warm-up and narrow coverage.", undefined, ["cache-refill"], "Cache-restart surge only"),
+      option("L12-A8", "Larger shared pools", "Raise every shared pool limit.", 0, 2, "Easy", "partial", "Buys brief concurrency while preserving the shared failure domain the incident is about.", "More downstream overload.", undefined, undefined, "Nothing contained — shared failure remains"),
+      option("L12-A9", "Active-active writes", "Multi-region active-active writes for every component.", 0, 7, "Hard", "costly", "Covers zone loss like A4 but for 7 of 12 points, at major consistency cost this incident does not require.", "Conflicts, split brain, and operational complexity.", undefined, ["zone"], "Zone loss (the same domain as A4, far heavier)"),
     ],
     canonicalOptionIds: ["L12-A1", "L12-A3", "L12-A4", "L12-A5"], canonicalCost: 0, canonicalPoints: 0,
     official: {
@@ -803,14 +804,28 @@ const lateLevels: LevelSpec[] = [
       fit: "Budgets limit calls, bulkheads contain overload, zone recovery preserves durability, and canaries stop harmful change.", risk: "Policy tuning, rejected work, failover data risk, and false-positive rollback.",
       verification: "Replay every wave separately and together; prove bounded amplification, zero loss, automated rollback, and queue recovery within 12 minutes.", next: "The workshop ends by comparing value, permanent complexity, reversibility, and transfer to your own systems.",
     },
-    hints: ["Choose one observation from each wave and rank checkout durability above email and analytics freshness.", "Contain amplification and shared resources, protect durable recovery, and stop harmful change; no budget covers every improvement."],
+    hints: ["Cite one observation from each wave, then rank checkout durability above email and analytics freshness.", "Every failure domain needs containment, but prefer the action that covers the most per point — and do not pay to cover the same domain twice."],
     stretch: "What risk does your selected set deliberately leave uncovered?",
     capstone: {
       budget: 12,
       maxSelections: 4,
       evidenceRequired: 3,
+      waveLabels: [
+        "Dependency failure — Redis restarts and email times out",
+        "Overload and backlog — retries amplify load and stopped workers grow the queue",
+        "Infrastructure and change — one zone is lost and a bad deployment reaches the fleet",
+      ],
       alternateOptionIds: ["L12-A2", "L12-A3", "L12-A4", "L12-A5"],
       coverageDimensions: ["dependency", "amplification", "checkout-resources", "queue-recovery", "zone", "deploy", "cache-refill"],
+      dimensionLabels: {
+        dependency: "Dependency hangs",
+        amplification: "Retry amplification",
+        "checkout-resources": "Checkout resource isolation",
+        "queue-recovery": "Worker-queue backlog",
+        zone: "Zone loss and durable recovery",
+        deploy: "Harmful deployment",
+        "cache-refill": "Cache-restart surge",
+      },
       coverageRequirements: {
         usefulCheckout: ["dependency", "amplification", "checkout-resources", "zone"],
         errors: ["dependency", "amplification", "checkout-resources", "zone", "deploy"],

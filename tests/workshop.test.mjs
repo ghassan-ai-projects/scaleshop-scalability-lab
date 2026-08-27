@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   calculateCanonicalLedger,
   calculateCanonicalLedgerHistory,
+  capstoneCoverageSummary,
+  capstoneGaps,
   capstoneMetricValue,
   coreMetrics,
   formatMetric,
@@ -201,6 +203,29 @@ test("capstone aggregation reaches canonical values only with required coverage"
   for (const metric of level.metrics) assert.equal(capstoneMetricValue(level, level.canonicalOptionIds, metric.id), metric.after);
   assert.notEqual(capstoneMetricValue(level, ["L12-A6"], "errors"), level.metrics.find((metric) => metric.id === "errors").after);
   assert.equal(capstoneMetricValue(level, ["L12-A6"], "offeredCheckout"), level.metrics.find((metric) => metric.id === "offeredCheckout").value);
+});
+
+test("the capstone near-miss scorecard names uncovered domains and the cheapest fix", () => {
+  const level = levels[11];
+
+  // The canonical set contains every required domain: no gaps, and the count is full.
+  assert.deepEqual(capstoneGaps(level, level.canonicalOptionIds), []);
+  const full = capstoneCoverageSummary(level, level.canonicalOptionIds);
+  assert.equal(full.contained, full.total);
+
+  // Dropping progressive delivery leaves the deployment domain exposed, and the scorecard must
+  // name it and point at the cheapest action that closes it (A5, 2 pts) — not a costlier one.
+  const missingDeploy = ["L12-A1", "L12-A3", "L12-A4"];
+  const gaps = capstoneGaps(level, missingDeploy);
+  const deployGap = gaps.find((gap) => gap.dimension === "deploy");
+  assert.ok(deployGap, "deploy gap must be reported");
+  assert.equal(deployGap.label, "Harmful deployment");
+  assert.equal(deployGap.closestFix.title, "Progressive delivery");
+  assert.equal(deployGap.closestFix.points, 2);
+  assert.ok(capstoneCoverageSummary(level, missingDeploy).contained < full.total);
+
+  // The distractor dimension no metric depends on (cache-refill) is never reported as a gap.
+  assert.ok(capstoneGaps(level, ["L12-A1"]).every((gap) => gap.dimension !== "cache-refill"));
 });
 
 test("persisted state is versioned and range checked", () => {

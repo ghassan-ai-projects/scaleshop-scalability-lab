@@ -747,7 +747,7 @@ At normal peak traffic, the facilitator injects several failures: one availabili
 - `L12-E1` — A shared 30-second timeout exists on every dependency. **Decisive.**
 - `L12-E2` — Retries are immediate and unbounded in two clients. **Decisive.**
 - `L12-E3` — App, worker, and dependency calls share pools. **Decisive.**
-- `L12-E4` — Checkout errors reach 12% and SLO burn 22×. **Supporting.**
+- `L12-E4` — Checkout errors reach 12% and SLO burn 12× (12% against a 1% budget). **Supporting.**
 - `L12-E5` — Queue oldest age reaches 26 minutes when workers stop. **Supporting.**
 - `L12-E6` — One deployment reaches all instances at once. **Decisive.**
 - `L12-E7` — A Redis restart causes a database-read surge. **Supporting.**
@@ -761,7 +761,7 @@ The capstone reveals evidence in three waves before the team commits one final a
 2. **Overload and backlog:** retries amplify load and stopped workers increase oldest-job age.
 3. **Infrastructure and change failure:** one zone is lost and a faulty deployment raises errors.
 
-Evidence from earlier waves remains visible. This staging reduces cognitive overload without turning the capstone into three unrelated quizzes.
+Evidence from earlier waves remains visible. This staging reduces cognitive overload without turning the capstone into three unrelated quizzes. The three wave names are rendered as a legend on the evidence desk (`capstone.waveLabels`); the incident text also states the three waves explicitly, so a participant can see *what* they are decomposing rather than inferring it from unlabelled `Wave 1/2/3` tags. The earlier build carried the wave tags but never rendered this legend, which is the main reason the capstone read as unclear in pilot feedback.
 
 The capstone overrides the shared two-evidence rule: teams cite at least one observation from each wave and name the invariant their action set prioritizes. Its 25 evidence points allocate 8 per wave plus 1 for the correctly prioritized invariant; a supporting rather than decisive observation earns half of that wave's allocation.
 
@@ -781,7 +781,7 @@ Teams have **12 resilience points** and may choose at most four actions. Unspent
 | L12-A8 | Larger shared pools | 2 | Buys short-term concurrency but preserves shared failure and can increase downstream pressure |
 | L12-A9 | Active-active writes | 7 | Covers a wider regional failure but adds unjustified consistency, conflict, and operating complexity for this incident |
 
-The canonical smallest sufficient set is `L12-A1`, `L12-A3`, `L12-A4`, and `L12-A5`, using 11 points. It deliberately leaves one point unspent. Replacing `L12-A1` with `L12-A2` also restores the displayed constraints but uses all 12 points and adds broader fallback policy while leaving retry behavior less directly governed; classify it as `Restores the SLO with excess cost or complexity`. Substituting `L12-A6` or `L12-A7` leaves a current failure uncontained. Before commit, action order is shuffled and only the running point total and remaining slots are visible. Coverage and uncovered risks appear only after commit.
+The canonical smallest sufficient set is `L12-A1`, `L12-A3`, `L12-A4`, and `L12-A5`, using 11 points. It deliberately leaves one point unspent. Replacing `L12-A1` with `L12-A2` also restores the displayed constraints but uses all 12 points and adds broader fallback policy while leaving retry behavior less directly governed; classify it as `Restores the SLO with excess cost or complexity`. Substituting `L12-A6` or `L12-A7` leaves a current failure uncontained. Before commit, action order is shuffled and only the running point total and remaining slots are visible. Each action now also states, in plain language, the primary failure domain it contains (`OptionSpec.covers`), so selecting a set is a legible design task rather than a guess about hidden tags. What stays hidden until commit is the *judgement*: the graded coverage matrix below, whether the set is the smallest sufficient one, and which risk it leaves uncovered. Naming the domains removes extraneous load; withholding the verdict keeps the germane challenge.
 
 ### Failure-coverage matrix
 
@@ -802,7 +802,7 @@ This matrix appears only after commit and drives the deterministic remaining-fai
 ### Recommended reasoning
 
 - **Failure mechanism:** dependency failure amplification and shared failure domains, combined with a zone loss.
-- **Evidence:** unbounded immediate retries, shared pools, 30-second timeouts, 22× burn, and queue age growth.
+- **Evidence:** unbounded immediate retries, shared pools, 30-second timeouts, 12× burn, and queue age growth.
 - **Why this set fits:** dependency budgets limit calls; bulkheads/backpressure contain overload; multi-zone failover handles infrastructure loss; progressive delivery contains harmful change. Existing asynchronous email/analytics paths may recover later, so graceful-isolation work is valuable but not required for the smallest sufficient set.
 - **New risk:** incorrect timeout budgets, breaker oscillation, dropped or rejected work under backpressure, failover data risk, false-positive rollback, and higher operational testing burden.
 

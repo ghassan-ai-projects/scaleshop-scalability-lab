@@ -6,6 +6,8 @@ import { levels } from "@/data/levels";
 import {
   calculateCanonicalLedger,
   capstoneCoverage,
+  capstoneCoverageSummary,
+  capstoneGaps,
   capstoneMetricValue,
   coreMetrics,
   formatMetric,
@@ -336,7 +338,8 @@ export function Workshop() {
 
         <section id="evidence" className="panel evidence-panel" aria-labelledby="evidence-title">
           <div className="section-heading"><div><p className="eyebrow">Investigate</p><h2 id="evidence-title">Evidence desk</h2></div><span className="inspection-count">{revealed.length} / {level.evidence.length} inspected</span></div>
-          <p className="section-intro">Open as much evidence as useful. Then nominate the {requiredEvidence} most decisive items.</p>
+          <p className="section-intro">Open as much evidence as useful. Then nominate the {requiredEvidence} most decisive items{level.capstone ? ", one from each failure wave" : ""}.</p>
+          {level.capstone?.waveLabels && <ol className="wave-legend" aria-label="The three failure waves in this incident">{level.capstone.waveLabels.map((label, index) => <li key={label}><span className="wave-tag">Wave {index + 1}</span>{label}</li>)}</ol>}
           <div className="evidence-grid">
             {level.evidence.map((item) => {
               const isOpen = revealed.includes(item.id); const cited = citedEvidence.includes(item.id);
@@ -361,7 +364,7 @@ export function Workshop() {
             {level.capstone && <p className="capstone-budget-note">This scenario-only budget limits the resilience actions you can combine. It is separate from the reference architecture effort budget.</p>}
             {!readyForOptions ? <div className="decision-lock"><span>↳</span><p>Select a hypothesis and cite {requiredEvidence} revealed evidence items{level.capstone ? ", with one from each failure wave," : ""} before comparing tools.</p></div> : <fieldset disabled={Boolean(submission)}><legend className="sr-only">Select an intervention</legend><div className="option-list">{displayedOptions.map((item) => {
               const checked = optionIds.includes(item.id); const wouldExceed = Boolean(level.capstone && !checked && (optionIds.length >= level.capstone.maxSelections || selectedPoints + item.points > level.capstone.budget));
-              return <label className={`option-card ${checked ? "selected" : ""} ${wouldExceed ? "disabled" : ""}`} key={item.id}><input aria-label={item.title} type={level.capstone ? "checkbox" : "radio"} name="option" checked={checked} disabled={wouldExceed || Boolean(submission)} onChange={() => toggleOption(item.id)} /><span className="option-copy"><strong>{item.title}</strong><span>{item.mechanism}</span><small>€{item.monthlyCost}/mo · {item.points} pts · {item.leadTime} · {item.reversibility}</small></span></label>;
+              return <label className={`option-card ${checked ? "selected" : ""} ${wouldExceed ? "disabled" : ""}`} key={item.id}><input aria-label={item.title} type={level.capstone ? "checkbox" : "radio"} name="option" checked={checked} disabled={wouldExceed || Boolean(submission)} onChange={() => toggleOption(item.id)} /><span className="option-copy"><strong>{item.title}</strong><span>{item.mechanism}</span>{level.capstone && item.covers && <em className="option-covers">Contains: {item.covers}</em>}<small>{level.capstone ? `${item.points} resilience pts` : `€${item.monthlyCost}/mo · ${item.points} pts`} · {item.leadTime} · {item.reversibility}</small></span></label>;
             })}</div></fieldset>}
           </article>
         </section>
@@ -388,6 +391,16 @@ export function Workshop() {
             <article><span>Your intervention</span><h3>{selectedOutcome.title}</h3><p>{selectedOptions.map((item) => item.areaFit).join(" ")}</p><p><strong>When it fits:</strong> {selectedOptions.map((item) => item.fitBoundary).join(" ")}</p></article>
             {selectedOutcome.kind !== "best" && <article className="canonical-answer"><span>Recommended next change</span><h3>{level.options.filter((item) => level.canonicalOptionIds.includes(item.id)).map((item) => item.title).join(" + ")}</h3><p>{level.options.filter((item) => level.canonicalOptionIds.includes(item.id)).map((item) => item.mechanism).join(" ")}</p><p><strong>Why:</strong> {level.official.fit}</p></article>}
           </div>
+          {level.capstone && (() => {
+            const summary = capstoneCoverageSummary(level, submission.optionIds);
+            const gaps = capstoneGaps(level, submission.optionIds);
+            return <div className={`coverage-scorecard ${gaps.length === 0 ? "complete" : "incomplete"}`} role="note">
+              <div className="scorecard-count"><span>Failure domains contained</span><strong>{summary.contained} of {summary.total}</strong></div>
+              {gaps.length === 0
+                ? <p>{selectedOutcome?.kind === "costly" ? "Every failure domain is contained — but this set uses the whole allowance, more than the smallest sufficient one." : "Every injected failure domain is contained, with a resilience point to spare. This is the smallest sufficient set."}</p>
+                : <><p>Each remaining domain still fails when its wave is replayed:</p><ul>{gaps.map((gap) => <li key={gap.dimension}><strong>{gap.label}</strong> — still exposed.{gap.closestFix ? <> Closest fix within budget: <em>{gap.closestFix.title}</em> ({gap.closestFix.points} pts).</> : null}</li>)}</ul></>}
+            </div>;
+          })()}
           {missedDecisiveEvidence(level, submission).length > 0 && <div className="missed-evidence" role="note">
             <span>Decisive evidence you did not cite</span>
             <ul>{missedDecisiveEvidence(level, submission).map((item) => <li key={item.id}><strong>{item.title}</strong> — {item.value}. {item.meaning}</li>)}</ul>
@@ -397,7 +410,7 @@ export function Workshop() {
             <article><span>Why it fits</span><h3>{level.official.fit}</h3><p><strong>Verification:</strong> {level.official.verification}</p></article>
             <article><span>New complexity</span><h3>{level.official.risk}</h3><p><strong>Your predicted risk:</strong> {submission.risk}</p></article>
           </div>
-          <div className="cost-comparison"><div><span>Your experiment would cost</span><strong>€{selectedOptions.reduce((sum, item) => sum + item.monthlyCost, 0)}/mo · {selectedOptions.reduce((sum, item) => sum + item.points, 0)} pts</strong><small>Counterfactual only; this does not spend the reference budget.</small></div><div><span>Recommended reference change</span><strong>€{level.canonicalCost}/mo · {level.capstone ? "separate resilience budget" : `${level.canonicalPoints} effort pts`}</strong></div><div className="projected-budget"><span>Reference budget after adoption</span><strong>€{projectedLedger.monthly.toLocaleString()}/mo · {projectedLedger.points} pts remain</strong><small>{state.adoptedThrough >= level.id ? "Already included in the ledger." : `Adopting the reference path through Level ${level.id} spends €${(ledger.monthly - projectedLedger.monthly).toLocaleString()}/mo and ${ledger.points - projectedLedger.points} effort pts.`}</small></div>{state.scoring && <div><span>Team reasoning review</span><strong>{scoreSubmission(level, submission)} / 90 automatic · 10 team self-review</strong><small>{Object.entries(scoreBreakdown(level, submission)).map(([key, value]) => `${key}: ${value}`).join(" · ")}</small></div>}</div>
+          <div className="cost-comparison"><div><span>Your experiment would cost</span><strong>{level.capstone ? `${selectedOptions.reduce((sum, item) => sum + item.points, 0)} resilience pts` : `€${selectedOptions.reduce((sum, item) => sum + item.monthlyCost, 0)}/mo · ${selectedOptions.reduce((sum, item) => sum + item.points, 0)} pts`}</strong><small>Counterfactual only; this does not spend the reference budget.</small></div><div><span>Recommended reference change</span><strong>{level.capstone ? "Separate resilience budget" : `€${level.canonicalCost}/mo · ${level.canonicalPoints} effort pts`}</strong></div><div className="projected-budget"><span>Reference budget after adoption</span><strong>€{projectedLedger.monthly.toLocaleString()}/mo · {projectedLedger.points} pts remain</strong><small>{state.adoptedThrough >= level.id ? "Already included in the ledger." : `Adopting the reference path through Level ${level.id} spends €${(ledger.monthly - projectedLedger.monthly).toLocaleString()}/mo and ${ledger.points - projectedLedger.points} effort pts.`}</small></div>{state.scoring && <div><span>Team reasoning review</span><strong>{scoreSubmission(level, submission)} / 90 automatic · 10 team self-review</strong><small>{Object.entries(scoreBreakdown(level, submission)).map(([key, value]) => `${key}: ${value}`).join(" · ")}</small></div>}</div>
           <p className="scenario-cost-note">Euro amounts are workshop scenario values, not vendor quotes. Effort points compare relative delivery and organizational load; they are not people or days.</p>
           <div className="next-callout"><p><span>{level.id === 12 && state.adoptedThrough === 12 ? "Workshop complete" : "Next pressure"}</span>{level.id === 12 && state.adoptedThrough === 12 ? "The team completed all 12 incidents. Use the journey to revisit any decision and compare reasoning." : level.official.next}</p>{!(level.id === 12 && state.adoptedThrough === 12) && <button className="primary-button" onClick={adoptAndContinue}>{level.id === 12 ? "Complete workshop" : "Adopt recommended change and continue"} <span>→</span></button>}</div>
         </section>}

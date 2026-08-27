@@ -84,6 +84,13 @@ export interface OptionSpec {
    */
   metricEffects?: Record<string, number | null>;
   coverage?: string[];
+  /**
+   * Human-readable statement of the failure domain(s) this action primarily contains, shown on
+   * the capstone option card during selection. It names *what* each tool addresses so the set is
+   * a legible design task; it deliberately does not say how well, or what residual risk remains —
+   * that judgement is what the debrief evaluates.
+   */
+  covers?: string;
   areaFit: string;
   fitBoundary: string;
 }
@@ -135,9 +142,17 @@ export interface LevelSpec {
     evidenceRequired: number;
     /** The broader set that also restores every constraint, at the cost of the whole allowance. */
     alternateOptionIds: string[];
+    /**
+     * Names the three failure waves so the evidence desk can show what the team is decomposing.
+     * Index 0 is wave 1. The spec designed this staging to reduce cognitive overload; without the
+     * legend the participant sees only unexplained "Wave 1/2/3" tags.
+     */
+    waveLabels?: [string, string, string];
     /** Metric id → the protection dimensions that must all be covered to reach `after`. */
     coverageRequirements: Record<string, string[]>;
     coverageDimensions: string[];
+    /** Plain-language names for coverage dimensions, used by the near-miss debrief scorecard. */
+    dimensionLabels?: Record<string, string>;
   };
   relationships?: MetricRelationship[];
 }
@@ -365,6 +380,54 @@ export function capstoneCoverage(level: LevelSpec, optionIds: string[]): Set<str
     level.options.find((option) => option.id === id)?.coverage?.forEach((dimension) => covered.add(dimension)),
   );
   return covered;
+}
+
+/**
+ * The failure domains that actually have to be contained: every dimension some metric's
+ * restoration depends on. A dimension no metric requires (e.g. the transient cache-refill surge)
+ * is a distractor, not a gap, so it is intentionally excluded from the near-miss scorecard.
+ */
+export function capstoneRequiredDimensions(level: LevelSpec): string[] {
+  const required = new Set<string>();
+  for (const dimensions of Object.values(level.capstone?.coverageRequirements ?? {})) {
+    for (const dimension of dimensions) required.add(dimension);
+  }
+  return [...required];
+}
+
+export function capstoneCoverageSummary(level: LevelSpec, optionIds: string[]): { contained: number; total: number } {
+  const required = capstoneRequiredDimensions(level);
+  const covered = capstoneCoverage(level, optionIds);
+  return { contained: required.filter((dimension) => covered.has(dimension)).length, total: required.length };
+}
+
+export interface CapstoneGap {
+  dimension: string;
+  label: string;
+  /** The cheapest single action that would have closed this gap, so the debrief can be specific. */
+  closestFix?: { title: string; points: number };
+}
+
+/**
+ * Required failure domains the selected set leaves uncovered, each with the cheapest action that
+ * would have closed it. This turns an all-or-nothing "partial" into actionable near-miss feedback
+ * without lowering the bar: the smallest-sufficient judgement is still the participant's to make.
+ */
+export function capstoneGaps(level: LevelSpec, optionIds: string[]): CapstoneGap[] {
+  const covered = capstoneCoverage(level, optionIds);
+  const labels = level.capstone?.dimensionLabels ?? {};
+  return capstoneRequiredDimensions(level)
+    .filter((dimension) => !covered.has(dimension))
+    .map((dimension) => {
+      const closest = level.options
+        .filter((option) => option.coverage?.includes(dimension))
+        .sort((first, second) => first.points - second.points)[0];
+      return {
+        dimension,
+        label: labels[dimension] ?? dimension,
+        closestFix: closest ? { title: closest.title, points: closest.points } : undefined,
+      };
+    });
 }
 
 /**
