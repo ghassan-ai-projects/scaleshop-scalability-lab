@@ -85,7 +85,7 @@ This table specifies the Incident state and canonical recommended outcome. Befor
 | 9 | Catalogue 8,000 RPS, checkout 30/s | Catalogue owns 88% of app CPU; catalogue p95 410 ms; checkout p95 620 ms; 24 shared instances | Catalogue and checkout scale separately; catalogue p95 180 ms; checkout p95 460 ms; checkout uses 3 instances |
 | 10 | 20,000 attempts in 60 seconds for 500 units | 20,000 attempts; 563 orders accepted for 500 units; 437 unambiguous valid outcomes; lock-wait p95 2,800 ms; retries 18%; duplicates 2.1%; oversold units 63 | 20,000 attempts; exactly 500 reservations accepted; 500 unambiguous valid outcomes; explicit rejected/queued outcomes for excess demand; oversold 0; duplicates 0; checkout outcome p95 720 ms |
 | 11 | 4.2 TB order store and write ceiling | Indexes 1.6 TB; write IOPS 92%; checkout p95 1,200 ms; backup 11 h; maintenance 7 h | Hot set 650 GB; indexes 340 GB; write IOPS 68%; checkout p95 650 ms; hot backup 2.1 h; hot restore 3.4 h; maintenance 1.5 h |
-| 12 | Dependency and zone failures | Offered checkout 30/s; useful completion 26.4/s; checkout errors 12%; dependency timeouts 30 s; SLO burn 22×; queue oldest age 26 min | Offered checkout 30/s; useful completion 29.8/s; checkout errors 0.7%; checkout p95 690 ms; confirmed order loss 0; queue recovers within 12 min |
+| 12 | Dependency and zone failures | Offered checkout 30/s; useful completion 26.4/s; checkout errors 12%; dependency timeouts 30 s; SLO burn 12×; queue oldest age 26 min | Offered checkout 30/s; useful completion 29.8/s; checkout errors 0.7%; checkout p95 690 ms; confirmed order loss 0; oldest queued job recovers to 9 min |
 
 ## 6. Level-specific evidence metrics
 

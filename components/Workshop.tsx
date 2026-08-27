@@ -336,7 +336,8 @@ export function Workshop() {
 
         <section id="evidence" className="panel evidence-panel" aria-labelledby="evidence-title">
           <div className="section-heading"><div><p className="eyebrow">Investigate</p><h2 id="evidence-title">Evidence desk</h2></div><span className="inspection-count">{revealed.length} / {level.evidence.length} inspected</span></div>
-          <p className="section-intro">Open as much evidence as useful. Then nominate the {requiredEvidence} most decisive items.</p>
+          <p className="section-intro">Open as much evidence as useful. Then nominate the {requiredEvidence} most decisive items{level.capstone ? ", one from each failure wave" : ""}.</p>
+          {level.capstone?.waveLabels && <ol className="wave-legend" aria-label="The three failure waves in this incident">{level.capstone.waveLabels.map((label, index) => <li key={label}><span className="wave-tag">Wave {index + 1}</span>{label}</li>)}</ol>}
           <div className="evidence-grid">
             {level.evidence.map((item) => {
               const isOpen = revealed.includes(item.id); const cited = citedEvidence.includes(item.id);
@@ -361,7 +362,7 @@ export function Workshop() {
             {level.capstone && <p className="capstone-budget-note">This scenario-only budget limits the resilience actions you can combine. It is separate from the reference architecture effort budget.</p>}
             {!readyForOptions ? <div className="decision-lock"><span>↳</span><p>Select a hypothesis and cite {requiredEvidence} revealed evidence items{level.capstone ? ", with one from each failure wave," : ""} before comparing tools.</p></div> : <fieldset disabled={Boolean(submission)}><legend className="sr-only">Select an intervention</legend><div className="option-list">{displayedOptions.map((item) => {
               const checked = optionIds.includes(item.id); const wouldExceed = Boolean(level.capstone && !checked && (optionIds.length >= level.capstone.maxSelections || selectedPoints + item.points > level.capstone.budget));
-              return <label className={`option-card ${checked ? "selected" : ""} ${wouldExceed ? "disabled" : ""}`} key={item.id}><input aria-label={item.title} type={level.capstone ? "checkbox" : "radio"} name="option" checked={checked} disabled={wouldExceed || Boolean(submission)} onChange={() => toggleOption(item.id)} /><span className="option-copy"><strong>{item.title}</strong><span>{item.mechanism}</span><small>€{item.monthlyCost}/mo · {item.points} pts · {item.leadTime} · {item.reversibility}</small></span></label>;
+              return <label className={`option-card ${checked ? "selected" : ""} ${wouldExceed ? "disabled" : ""}`} key={item.id}><input aria-label={item.title} type={level.capstone ? "checkbox" : "radio"} name="option" checked={checked} disabled={wouldExceed || Boolean(submission)} onChange={() => toggleOption(item.id)} /><span className="option-copy"><strong>{item.title}</strong><span>{item.mechanism}</span>{level.capstone && item.covers && <em className="option-covers">Contains: {item.covers}</em>}<small>€{item.monthlyCost}/mo · {item.points} pts · {item.leadTime} · {item.reversibility}</small></span></label>;
             })}</div></fieldset>}
           </article>
         </section>

@@ -84,6 +84,13 @@ export interface OptionSpec {
    */
   metricEffects?: Record<string, number | null>;
   coverage?: string[];
+  /**
+   * Human-readable statement of the failure domain(s) this action primarily contains, shown on
+   * the capstone option card during selection. It names *what* each tool addresses so the set is
+   * a legible design task; it deliberately does not say how well, or what residual risk remains —
+   * that judgement is what the debrief evaluates.
+   */
+  covers?: string;
   areaFit: string;
   fitBoundary: string;
 }
@@ -135,6 +142,12 @@ export interface LevelSpec {
     evidenceRequired: number;
     /** The broader set that also restores every constraint, at the cost of the whole allowance. */
     alternateOptionIds: string[];
+    /**
+     * Names the three failure waves so the evidence desk can show what the team is decomposing.
+     * Index 0 is wave 1. The spec designed this staging to reduce cognitive overload; without the
+     * legend the participant sees only unexplained "Wave 1/2/3" tags.
+     */
+    waveLabels?: [string, string, string];
     /** Metric id → the protection dimensions that must all be covered to reach `after`. */
     coverageRequirements: Record<string, string[]>;
     coverageDimensions: string[];

@@ -127,6 +127,11 @@ a { color: inherit; }
 .section-heading h2, .panel h2 { margin: 0; font-size: clamp(1.15rem, 2vw, 1.55rem); letter-spacing: -.025em; }
 .section-intro { margin: .65rem 0 1.25rem; color: var(--muted); line-height: 1.55; }
 
+.wave-legend { display: grid; gap: .4rem; margin: 0 0 1.25rem; padding: .75rem .9rem; list-style: none; border: 1px solid var(--line-bright); border-radius: .6rem; background: rgb(4 14 11 / .45); }
+.wave-legend li { display: flex; align-items: baseline; gap: .55rem; color: var(--muted); font-size: .76rem; line-height: 1.4; }
+.wave-tag { flex: none; padding: .18rem .45rem; border: 1px solid var(--mint); border-radius: 99px; background: var(--mint-dark); color: var(--mint); font: 750 .58rem/1 ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; }
+.option-covers { color: var(--mint); font: 650 .68rem/1.4 ui-monospace, monospace; font-style: normal; }
+
 .architecture-panel { padding: 1.25rem; overflow: hidden; }
 .state-pill, .inspection-count, .points-counter { padding: .38rem .55rem; border: 1px solid var(--line-bright); border-radius: 99px; color: var(--muted); font: 750 .64rem/1 ui-monospace, monospace; letter-spacing: .06em; }
 .state-pill.is-after { border-color: var(--mint); background: var(--mint-dark); color: var(--mint); }
