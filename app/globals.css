@@ -314,6 +314,18 @@ tbody th { color: var(--muted); font-weight: 650; }
 .missed-evidence ul { display: grid; gap: .45rem; margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .8rem; line-height: 1.55; }
 .missed-evidence strong { color: var(--text); }
 
+.coverage-scorecard { margin: 1.1rem 0; padding: .85rem 1rem; border: 1px solid var(--line-bright); border-radius: .6rem; background: var(--surface-2); }
+.coverage-scorecard.complete { border-color: var(--mint); background: var(--mint-dark); }
+.coverage-scorecard.incomplete { border-left: 3px solid var(--red); }
+.scorecard-count { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .5rem; }
+.scorecard-count span { color: var(--amber); font: 750 .67rem/1 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; }
+.coverage-scorecard.complete .scorecard-count span { color: var(--mint); }
+.scorecard-count strong { color: var(--text); font-size: 1.05rem; }
+.coverage-scorecard p { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+.coverage-scorecard ul { display: grid; gap: .45rem; margin: .5rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+.coverage-scorecard li strong { color: var(--text); }
+.coverage-scorecard li em { color: var(--mint); font-style: normal; }
+
 .site-footer { position: relative; overflow: hidden; border-top: 1px solid var(--line); background: linear-gradient(120deg, rgb(13 31 25 / .96), rgb(6 15 13 / .98)); }
 .site-footer::before { content: ""; position: absolute; top: 0; left: 0; width: 34%; height: 1px; background: linear-gradient(90deg, var(--mint), transparent); }
 .site-footer-inner { position: relative; width: min(1720px, calc(100% - 2rem)); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2rem; margin: 0 auto; padding: 2rem 0; }

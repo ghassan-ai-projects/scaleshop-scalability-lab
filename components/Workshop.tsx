@@ -6,6 +6,8 @@ import { levels } from "@/data/levels";
 import {
   calculateCanonicalLedger,
   capstoneCoverage,
+  capstoneCoverageSummary,
+  capstoneGaps,
   capstoneMetricValue,
   coreMetrics,
   formatMetric,
@@ -389,6 +391,16 @@ export function Workshop() {
             <article><span>Your intervention</span><h3>{selectedOutcome.title}</h3><p>{selectedOptions.map((item) => item.areaFit).join(" ")}</p><p><strong>When it fits:</strong> {selectedOptions.map((item) => item.fitBoundary).join(" ")}</p></article>
             {selectedOutcome.kind !== "best" && <article className="canonical-answer"><span>Recommended next change</span><h3>{level.options.filter((item) => level.canonicalOptionIds.includes(item.id)).map((item) => item.title).join(" + ")}</h3><p>{level.options.filter((item) => level.canonicalOptionIds.includes(item.id)).map((item) => item.mechanism).join(" ")}</p><p><strong>Why:</strong> {level.official.fit}</p></article>}
           </div>
+          {level.capstone && (() => {
+            const summary = capstoneCoverageSummary(level, submission.optionIds);
+            const gaps = capstoneGaps(level, submission.optionIds);
+            return <div className={`coverage-scorecard ${gaps.length === 0 ? "complete" : "incomplete"}`} role="note">
+              <div className="scorecard-count"><span>Failure domains contained</span><strong>{summary.contained} of {summary.total}</strong></div>
+              {gaps.length === 0
+                ? <p>{selectedOutcome?.kind === "costly" ? "Every failure domain is contained — but this set uses the whole allowance, more than the smallest sufficient one." : "Every injected failure domain is contained, with a resilience point to spare. This is the smallest sufficient set."}</p>
+                : <><p>Each remaining domain still fails when its wave is replayed:</p><ul>{gaps.map((gap) => <li key={gap.dimension}><strong>{gap.label}</strong> — still exposed.{gap.closestFix ? <> Closest fix within budget: <em>{gap.closestFix.title}</em> ({gap.closestFix.points} pts).</> : null}</li>)}</ul></>}
+            </div>;
+          })()}
           {missedDecisiveEvidence(level, submission).length > 0 && <div className="missed-evidence" role="note">
             <span>Decisive evidence you did not cite</span>
             <ul>{missedDecisiveEvidence(level, submission).map((item) => <li key={item.id}><strong>{item.title}</strong> — {item.value}. {item.meaning}</li>)}</ul>

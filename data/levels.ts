@@ -817,6 +817,15 @@ const lateLevels: LevelSpec[] = [
       ],
       alternateOptionIds: ["L12-A2", "L12-A3", "L12-A4", "L12-A5"],
       coverageDimensions: ["dependency", "amplification", "checkout-resources", "queue-recovery", "zone", "deploy", "cache-refill"],
+      dimensionLabels: {
+        dependency: "Dependency hangs",
+        amplification: "Retry amplification",
+        "checkout-resources": "Checkout resource isolation",
+        "queue-recovery": "Worker-queue backlog",
+        zone: "Zone loss and durable recovery",
+        deploy: "Harmful deployment",
+        "cache-refill": "Cache-restart surge",
+      },
       coverageRequirements: {
         usefulCheckout: ["dependency", "amplification", "checkout-resources", "zone"],
         errors: ["dependency", "amplification", "checkout-resources", "zone", "deploy"],
